@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GINOM – Crisis Management AI (Mock)</title>
+
+    <!-- Geist (recommended via @font-face in CSS; this keeps system fallback working) -->
+    <!-- If you have local Geist woff2 files, add @font-face in styles.css -->
+
+    <!-- Mapbox -->
+    <link
+      href="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.css"
+      rel="stylesheet"
+    />
+
+    <!-- App CSS -->
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+
+  <body>
+    <div class="app-shell">
+      <!-- LEFT SIDEBAR -->
+      <aside class="sidebar">
+        <div class="sidebar__top">
+            <div class="brand-mark">
+              <a class="brand-mark__link" href="#" aria-label="Home">
+                <img class="brand-mark__img" src="assets/logo/logo-black.svg" alt="GINOM" />
+              </a>
+            </div>
+
+          <button class="icon-btn" type="button" aria-label="Collapse sidebar">
+            <i data-lucide="menu"></i>
+          </button>
+        </div>
+
+        <button class="primary-pill" type="button">
+          <i data-lucide="plus"></i>
+          <span>New Session</span>
+        </button>
+
+        <div class="sidebar__section">
+          <div class="sidebar__label">RECENT SESSIONS</div>
+
+          <a class="session-item session-item--active" href="#">
+            <div class="session-item__icon session-item__icon--blue">
+              <i data-lucide="zap"></i>
+            </div>
+            <div class="session-item__body">
+              <div class="session-item__title">Earthquake Simulation</div>
+              <div class="session-item__meta">Tel Aviv – Magnitude 6.4</div>
+            </div>
+          </a>
+
+          <a class="session-item" href="#">
+            <div class="session-item__icon session-item__icon--orange">
+              <i data-lucide="shield-alert"></i>
+            </div>
+            <div class="session-item__body">
+              <div class="session-item__title">Cyber Attack Response</div>
+              <div class="session-item__meta">Power Grid – Critical</div>
+            </div>
+          </a>
+
+          <a class="session-item" href="#">
+            <div class="session-item__icon session-item__icon--teal">
+              <i data-lucide="waves"></i>
+            </div>
+            <div class="session-item__body">
+              <div class="session-item__title">Flood Impact Analysis</div>
+              <div class="session-item__meta">Haifa Region</div>
+            </div>
+          </a>
+
+          <a class="session-item" href="#">
+            <div class="session-item__icon session-item__icon--violet">
+              <i data-lucide="upload"></i>
+            </div>
+            <div class="session-item__body">
+              <div class="session-item__title">Infrastructure Upload</div>
+              <div class="session-item__meta">Multi-sector validation</div>
+            </div>
+          </a>
+        </div>
+
+        <div class="sidebar__section">
+          <div class="sidebar__label">QUICK ACTIONS</div>
+
+          <button class="ghost-action" type="button">
+            <i data-lucide="upload"></i>
+            <span>Upload Infrastructure</span>
+          </button>
+
+          <button class="ghost-action" type="button">
+            <i data-lucide="git-branch"></i>
+            <span>View Dependencies</span>
+          </button>
+
+          <button class="ghost-action" type="button">
+            <i data-lucide="play"></i>
+            <span>Run Simulation</span>
+          </button>
+        </div>
+
+        <div class="sidebar__footer">
+          <button class="ghost-action" type="button">
+            <i data-lucide="help-circle"></i>
+            <span>Help & Docs</span>
+          </button>
+
+          <button class="ghost-action" type="button">
+            <i data-lucide="scroll-text"></i>
+            <span>Activity Log</span>
+          </button>
+
+          <button class="ghost-action" type="button">
+            <i data-lucide="settings"></i>
+            <span>Settings</span>
+          </button>
+
+          <div class="user-chip">
+            <div class="user-chip__avatar">CM</div>
+            <div class="user-chip__meta">
+              <div class="user-chip__name">Crisis Manager</div>
+              <div class="user-chip__role">Admin Access</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAIN COLUMN -->
+      <main class="main">
+        <!-- TOP BAR -->
+        <header class="topbar">
+          <div class="topbar__left">
+            <div class="topbar__title">
+              <span class="topbar__brand">GINOM</span>
+              <span class="topbar__sub">Crisis Management AI</span>
+            </div>
+
+            <div class="status-pill">
+              <span class="status-dot"></span>
+              <span>System Operational</span>
+            </div>
+          </div>
+
+          <div class="topbar__right">
+            <button class="icon-btn" type="button" aria-label="Notifications">
+              <i data-lucide="bell"></i>
+            </button>
+            <button class="icon-btn" type="button" aria-label="Theme">
+              <i data-lucide="moon"></i>
+            </button>
+            <button class="icon-btn" type="button" aria-label="Apps">
+              <i data-lucide="layout-grid"></i>
+            </button>
+          </div>
+        </header>
+
+        <!-- CENTER: MAP + OVERLAYS -->
+        <section class="canvas">
+          <div id="map" class="map"></div>
+
+          <!-- Active Scenario Card -->
+          <div class="overlay overlay--scenario card">
+            <div class="card__header">
+              <div>
+                <div class="card__title">Active Scenario</div>
+                <div class="card__badge card__badge--critical">Critical</div>
+              </div>
+            </div>
+
+            <div class="scenario-row">
+              <i data-lucide="map-pin"></i>
+              <span>Tel Aviv Metropolitan</span>
+            </div>
+
+            <div class="scenario-row">
+              <i data-lucide="clock"></i>
+              <span>14:23:45 Local Time</span>
+            </div>
+
+            <div class="scenario-row">
+              <i data-lucide="zap"></i>
+              <span>Earthquake M6.4</span>
+            </div>
+          </div>
+
+          <!-- Sector Health -->
+          <div class="overlay overlay--health">
+            <div class="metric card">
+              <div class="metric__row">
+                <span class="metric__label">Electricity</span>
+                <span class="metric__value metric__value--red">47%</span>
+              </div>
+              <div class="bar"><div class="bar__fill bar__fill--red" style="width:47%"></div></div>
+            </div>
+
+            <div class="metric card">
+              <div class="metric__row">
+                <span class="metric__label">Water</span>
+                <span class="metric__value metric__value--orange">62%</span>
+              </div>
+              <div class="bar"><div class="bar__fill bar__fill--orange" style="width:62%"></div></div>
+            </div>
+
+            <div class="metric card">
+              <div class="metric__row">
+                <span class="metric__label">Communication</span>
+                <span class="metric__value metric__value--yellow">78%</span>
+              </div>
+              <div class="bar"><div class="bar__fill bar__fill--yellow" style="width:78%"></div></div>
+            </div>
+
+            <div class="metric card">
+              <div class="metric__row">
+                <span class="metric__label">Emergency</span>
+                <span class="metric__value metric__value--green">91%</span>
+              </div>
+              <div class="bar"><div class="bar__fill bar__fill--green" style="width:91%"></div></div>
+            </div>
+
+             <div class="metric card">
+              <div class="metric__row">
+                <span class="metric__label">First Responders</span>
+                <span class="metric__value metric__value--blue">88%</span>
+              </div>
+              <div class="bar"><div class="bar__fill bar__fill--blue" style="width:88%"></div></div>
+            </div>
+
+          </div>
+
+          
+
+
+          <!-- Timeline (bottom) -->
+          <div class="timeline card impact-timeline is-hidden" >
+            <div class="timeline__header">
+              <div class="timeline__title">Impact Timeline</div>
+              <div class="timeline__controls">
+                <button class="icon-btn icon-btn--small" type="button" aria-label="Back">
+                  <i data-lucide="skip-back"></i>
+                </button>
+                <button class="icon-btn icon-btn--small" type="button" aria-label="Play">
+                  <i data-lucide="play"></i>
+                </button>
+                <button class="icon-btn icon-btn--small" type="button" aria-label="Forward">
+                  <i data-lucide="skip-forward"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="timeline__track">
+              <span class="timeline__t">T+0:00</span>
+              <input class="timeline__range" type="range" min="0" max="120" value="42" />
+              <span class="timeline__t">T+2:00</span>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <!-- RIGHT ASSISTANT PANEL -->
+      <aside class="assistant">
+        <div class="assistant__header">
+          <div class="assistant__title">
+            <div class="assistant__bot">
+              <i data-lucide="bot"></i>
+            </div>
+            <div>
+              <div class="assistant__name">GINOM Assistant</div>
+              <div class="assistant__status"><span class="status-dot status-dot--small"></span> Active & Ready</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="assistant__body">
+          <div class="chat-bubble chat-bubble--bot">
+            <div class="chat-bubble__text">
+              Hello! I'm GINOM, your Crisis Management AI Assistant. I can help you simulate infrastructure disruptions,
+              analyze cascading effects, and recommend optimal recovery strategies.
+            </div>
+            <div class="chat-bubble__time">14:20</div>
+          </div>
+
+          <div class="chat-bubble chat-bubble--bot">
+            <div class="chat-bubble__text">
+              What would you like to do today?
+              <div class="quick-card">
+                <button class="quick-btn" type="button"><i data-lucide="zap"></i> Run earthquake simulation</button>
+                <button class="quick-btn" type="button"><i data-lucide="upload"></i> Upload infrastructure data</button>
+                <button class="quick-btn" type="button"><i data-lucide="git-branch"></i> View dependencies</button>
+              </div>
+            </div>
+            <div class="chat-bubble__time">14:20</div>
+          </div>
+
+        </div>
+
+        <div class="assistant__composer">
+          <input class="composer__input" type="text" placeholder="Type your message or command..." />
+          <button class="composer__send" type="button" aria-label="Send">
+            <i data-lucide="send"></i>
+          </button>
+
+          <div class="assistant__disclaimer">
+            GINOM may display simulated data. Verify critical actions.
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Mapbox -->
+    <script src="https://api.mapbox.com/mapbox-gl-js/v3.7.0/mapbox-gl.js"></script>
+
+    <!-- Chart.js (optional; used by Decision Support screens) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- App JS -->
+    <script type="module" src="./app.js"></script>
+
+  </body>
+</html>

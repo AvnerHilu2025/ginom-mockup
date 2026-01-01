@@ -1,0 +1,79 @@
+<div style="padding:14px; max-width:1100px;">
+  <div class="row" style="justify-content:space-between;">
+    <div>
+      <b>Simulation Configuration</b><br>
+      <span class="hint">הגדר פרמטרים לסימולציה. בשלב הבא ה-AI יציע שינוי פרמטרים ויבקש אישור.</span>
+    </div>
+    <div class="row">
+      <button class="btn secondary" id="backToMapBtn">Back to Map</button>
+      <button class="btn" id="applyBtn">Apply</button>
+    </div>
+  </div>
+
+  <div style="height:12px;"></div>
+
+  <div class="grid2">
+    <div class="card">
+      <b>Scope</b>
+      <div style="height:10px;"></div>
+
+      <div class="row">
+        <label>City</label>
+        <select id="city">
+          <option value="Tel Aviv">Tel Aviv</option>
+        </select>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <label>Sectors</label>
+        <select id="sectors" multiple size="6" style="min-width:260px;">
+          <option value="electricity" selected>electricity</option>
+          <option value="water" selected>water</option>
+          <option value="gas" selected>gas</option>
+          <option value="comms" selected>comms</option>
+          <option value="first_responders" selected>first_responders</option>
+        </select>
+      </div>
+
+      <div class="hint" style="margin-top:8px;">
+        דמו: עד 100 נכסים לכל סקטור.
+      </div>
+    </div>
+
+    <div class="card">
+      <b>Run Parameters</b>
+      <div style="height:10px;"></div>
+
+      <div class="row">
+        <label>Scenario</label>
+        <select id="scenario">
+          <option value="earthquake_light">earthquake_light</option>
+          <option value="earthquake_medium">earthquake_medium</option>
+          <option value="cyber_attack">cyber_attack</option>
+          <option value="extreme_weather">extreme_weather</option>
+        </select>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <label>Ticks</label>
+        <input id="ticks" type="number" min="1" max="60" value="6" />
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <label>Seed (דמו)</label>
+        <input id="seed" type="text" value="demo-1" />
+      </div>
+
+      <div class="hint" style="margin-top:8px;">
+        Apply ישמור את הקונפיגורציה. בשלב הבא נשתמש בה להרצת סימולציה דרך ה-Backend.
+      </div>
+    </div>
+  </div>
+
+  <div style="height:12px;"></div>
+
+  <div class="card">
+    <b>Current Configuration (JSON)</b>
+    <pre id="configPreview" style="margin:10px 0 0; background:#0b1220; color:#fff; padding:10px; border-radius:12px; overflow:auto;"></pre>
+  </div>
+</div>
