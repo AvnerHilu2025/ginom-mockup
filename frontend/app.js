@@ -6,7 +6,10 @@
  * - Uses api.js for backend calls, with fallback.
  */
 
+import { SECTORS, ASSET_STATUS } from "./constants.js";
 import { apiChat, apiExecute, localFallbackReply } from "./api.js";
+
+
 let MAP = null;
 
 /* =========================
@@ -129,17 +132,23 @@ function renderApproval(actions = [], onApprove) {
   });
 }
 
+
 /* =========================
    Map Assets (GeoJSON circles)
    ========================= */
-const SECTOR_COLORS = {
-  electricity: "#1E42AC",
-  water: "#0EA5E9",
-  gas: "#F97316",
-  communication: "#8B5CF6",
-  emergency: "#22C55E",
-  default: "#94A3B8",
-};
+const SECTOR_DEFAULT_COLOR = "#94A3B8";
+
+const SECTOR_COLOR_EXPR = [
+  "match",
+  ["get", "sector"],
+  "electricity", SECTORS.electricity.color,
+  "water", SECTORS.water.color,
+  "gas", SECTORS.gas.color,
+  "communication", SECTORS.communication.color,
+  "first_responders", SECTORS.first_responders.color,
+  SECTOR_DEFAULT_COLOR
+];
+
 
 function ensureAssetsLayer(map) {
   if (!map) return;
@@ -164,13 +173,14 @@ function ensureAssetsLayer(map) {
       "circle-color": [
         "match",
         ["get", "sector"],
-        "electricity", SECTOR_COLORS.electricity,
-        "water", SECTOR_COLORS.water,
-        "gas", SECTOR_COLORS.gas,
-        "communication", SECTOR_COLORS.communication,
-        "emergency", SECTOR_COLORS.emergency,
-        SECTOR_COLORS.default
+        "electricity", SECTORS.electricity.color,
+        "water", SECTORS.water.color,
+        "gas", SECTORS.gas.color,
+        "communication", SECTORS.communication.color,
+        "first_responders", SECTORS.first_responders.color,
+        "#94A3B8" // default
       ],
+
       "circle-stroke-color": "rgba(255,255,255,0.9)",
       "circle-stroke-width": 1,
       "circle-opacity": 0.9
@@ -188,7 +198,8 @@ function ensureAssetsLayer(map) {
 
     const p = f.properties || {};
     const name = p.name || p.id || "Asset";
-    const sector = p.sector || "unknown";
+    const sectorKey = p.sector || "unknown";
+    const sectorLabel = SECTORS[sectorKey]?.label || sectorKey;
     const subtype = p.subtype || "";
     const criticality = p.criticality ?? "";
 
@@ -196,7 +207,7 @@ function ensureAssetsLayer(map) {
       <div style="font-family: Geist, Arial; min-width: 220px;">
         <div style="font-weight:800; margin-bottom:6px;">${escapeHtml(name)}</div>
         <div style="font-size:12px; line-height:1.35;">
-          <div><b>Sector:</b> ${escapeHtml(sector)}</div>
+          <div><b>Sector:</b> ${escapeHtml(sectorLabel)}</div>
           <div><b>Type:</b> ${escapeHtml(subtype)}</div>
           <div><b>Criticality:</b> ${escapeHtml(criticality)}</div>
         </div>
@@ -338,7 +349,7 @@ function initMapIfPresent() {
   const map = new mapboxgl.Map({
     container: "map",
     style: "mapbox://styles/mapbox/streets-v12",
-    center: [35.2137, 31.7683], // Tel Aviv
+    center: [35.2137, 31.7683], // Jerusalem
     zoom: 10.5,
     pitch: 0,
     bearing: 0,
@@ -469,7 +480,7 @@ function initDecisionSupportChartsIfPresent() {
     new Chart(barsEl, {
       type: "bar",
       data: {
-        labels: ["Communication", "Electricity", "Emergency", "Transportation", "Water"],
+        labels: ["Communication", "Electricity", "First Responders", "Gas", "Water"],
         datasets: [
           { label: "Assets", data: [100, 100, 100, 100, 100], borderWidth: 0, backgroundColor: "rgba(30, 66, 172, 0.55)" },
           { label: "Failures", data: [2, 10, 0, 0, 7], borderWidth: 0, backgroundColor: "rgba(239, 68, 68, 0.55)" },
@@ -620,7 +631,7 @@ function initChat() {
     const t = (btn.textContent || "").toLowerCase();
     if (t.includes("run earthquake")) {
       btn.addEventListener("click", () => {
-        input.value = "Run earthquake simulation for Tel Aviv, magnitude 6.4";
+        input.value = "Run earthquake simulation for Jerusalem, magnitude 6.4";
         send.click();
       });
     }
@@ -641,6 +652,38 @@ function initChat() {
   try { if (window.lucide?.createIcons) window.lucide.createIcons(); } catch (_) {}
 }
 
+function syncSectorBarsToConstants() {
+  const cards = document.querySelectorAll(".overlay--health .metric.card[data-sector]");
+  if (!cards.length) {
+    console.warn("No sector cards found. Check HTML data-sector attributes.");
+    return;
+  }
+
+  cards.forEach((card) => {
+    const key = card.getAttribute("data-sector");
+    const cfg = SECTORS?.[key];
+    if (!cfg) {
+      console.warn("Unknown sector key in bar:", key);
+      return;
+    }
+
+    const fill = card.querySelector(".bar__fill");
+    const value = card.querySelector(".metric__value");
+
+    // Paint the bar and the percentage using constants.js
+    if (fill) fill.style.backgroundColor = cfg.color;
+    if (value) value.style.color = cfg.color;
+
+    // Optional: ensure label matches constants
+    const label = card.querySelector(".metric__label");
+    if (label) label.textContent = cfg.label;
+  });
+
+  console.log("Sector bars colored from constants.js");
+}
+
+
+
 /* =========================
    Boot
    ========================= */
@@ -649,4 +692,5 @@ document.addEventListener("DOMContentLoaded", () => {
   MAP = initMapIfPresent();
   initDecisionSupportChartsIfPresent();
   initChat();
+  syncSectorBarsToConstants();
 });

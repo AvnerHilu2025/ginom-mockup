@@ -3,76 +3,112 @@ import crypto from "crypto";
 import path from "path";
 import { openDb, initSchema, run } from "./db.js";
 
-function uuid() { return crypto.randomUUID(); }
-function randIn(min, max) { return min + Math.random() * (max - min); }
-
-// Default demo city: Jerusalem (inland, avoids sea points entirely)
-// You can override via env:
-//   DEMO_CITY="Jerusalem"
-//   DEMO_BBOX="31.72,31.83,35.14,35.27"  // latMin,latMax,lngMin,lngMax
-const DEFAULT_CITY = "Jerusalem";
-const DEFAULT_BBOX = { latMin: 31.72, latMax: 31.83, lngMin: 35.14, lngMax: 35.27 };
-
-function loadDemoCityAndBbox() {
-  const city = (process.env.DEMO_CITY || DEFAULT_CITY).trim();
-
-  const bboxStr = (process.env.DEMO_BBOX || "").trim();
-  if (bboxStr) {
-    const parts = bboxStr.split(",").map(s => Number(s.trim()));
-    if (parts.length === 4 && parts.every(n => Number.isFinite(n))) {
-      const [latMin, latMax, lngMin, lngMax] = parts;
-      return { city, bbox: { latMin, latMax, lngMin, lngMax } };
-    }
-    console.warn(`Invalid DEMO_BBOX="${bboxStr}". Using default bbox.`);
-  }
-
-  // If you ever switch DEMO_CITY, you can add more presets here.
-  return { city, bbox: DEFAULT_BBOX };
+function uuid() {
+  return crypto.randomUUID();
 }
 
+function randIn(min, max) {
+  return min + Math.random() * (max - min);
+}
+
+// Jerusalem bounding box (rough but safe for demo – no sea)
+const JERUSALEM = {
+  latMin: 31.73,
+  latMax: 31.83,
+  lngMin: 35.15,
+  lngMax: 35.27,
+};
+
+const CITY_NAME = "Jerusalem";
+
+// Canonical sectors (FINAL naming)
 const SECTORS = [
-  { sector: "electricity", subtypes: ["substation", "transformer", "line_node"] },
-  { sector: "water", subtypes: ["pump", "reservoir", "treatment"] },
-  { sector: "gas", subtypes: ["station", "valve", "pipeline_node"] },
-  { sector: "communication", subtypes: ["cell_tower", "fiber_node", "switch"] },
-  { sector: "emergency", subtypes: ["police_station", "fire_station", "ems"] }
+  {
+    sector: "electricity",
+    subtypes: ["substation", "transformer", "distribution_node"],
+    count: 100,
+  },
+  {
+    sector: "water",
+    subtypes: ["pump_station", "reservoir", "treatment_facility"],
+    count: 100,
+  },
+  {
+    sector: "gas",
+    subtypes: ["gas_station", "regulator", "pipeline_node"],
+    count: 80,
+  },
+  {
+    sector: "communication",
+    subtypes: ["cell_tower", "fiber_node", "switch"],
+    count: 120,
+  },
+  {
+    sector: "first_responders",
+    subtypes: ["police_station", "fire_station", "ems_station"],
+    count: 60,
+  },
 ];
 
 async function main() {
   const db = openDb(process.env.DB_PATH || "./demo.db");
   await initSchema(db, path.resolve("src/schema.sql"));
 
-  const { city, bbox } = loadDemoCityAndBbox();
-
+  console.log("Cleaning existing assets...");
   await run(db, "DELETE FROM assets");
 
+  console.log("Seeding assets for Jerusalem...");
+
   for (const s of SECTORS) {
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < s.count; i++) {
       const id = uuid();
       const subtype = s.subtypes[i % s.subtypes.length];
+
       const name = `${s.sector.toUpperCase()}_${subtype}_${String(i + 1).padStart(3, "0")}`;
 
-      const lat = randIn(bbox.latMin, bbox.latMax);
-      const lng = randIn(bbox.lngMin, bbox.lngMax);
+      const lat = randIn(JERUSALEM.latMin, JERUSALEM.latMax);
+      const lng = randIn(JERUSALEM.lngMin, JERUSALEM.lngMax);
 
-      const criticality = 1 + (i % 5);
+      // Criticality: first responders & electricity are more critical
+      let criticality = 3;
+      if (s.sector === "electricity") criticality = 5;
+      if (s.sector === "first_responders") criticality = 5;
+      if (s.sector === "communication") criticality = 4;
 
       await run(
         db,
-        `INSERT INTO assets (id, name, sector, subtype, lat, lng, city, criticality, meta_json)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-
-        [id, name, s.sector, subtype, lat, lng, city, criticality, JSON.stringify({ demo: true })]
+        `
+        INSERT INTO assets
+        (id, name, sector, subtype, lat, lng, city, criticality, meta_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        [
+          id,
+          name,
+          s.sector,
+          subtype,
+          lat,
+          lng,
+          CITY_NAME,
+          criticality,
+          JSON.stringify({
+            demo: true,
+            seeded_at: new Date().toISOString(),
+          }),
+        ]
       );
     }
   }
 
-  console.log(`Seed complete: 500 assets (100 per sector) in ${city}.`);
-  console.log(`BBOX: lat ${bbox.latMin}..${bbox.latMax}, lng ${bbox.lngMin}..${bbox.lngMax}`);
+  console.log("Seed complete.");
+  console.log(
+    `Total assets seeded: ${SECTORS.reduce((sum, s) => sum + s.count, 0)}`
+  );
+
   db.close();
 }
 
-main().catch(e => {
-  console.error(e);
+main().catch((err) => {
+  console.error("Seed failed:", err);
   process.exit(1);
 });

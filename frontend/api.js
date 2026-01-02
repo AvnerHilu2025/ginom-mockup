@@ -5,6 +5,7 @@
  * - English-only.
  */
 
+
 export const DEMO_BACKEND_BASE =
   (window.DEMO_BACKEND_BASE && String(window.DEMO_BACKEND_BASE)) ||
   "http://localhost:3000";
@@ -81,7 +82,7 @@ export function localFallbackReply(message) {
       requires_confirmation: true,
       actions: [
         { type: "MAP_SET_VIEW", payload: { lat: 32.0853, lng: 34.7818, zoom: 11 } },
-        { type: "MAP_SHOW_ASSETS", payload: { city: "Tel Aviv", sectors: ["electricity","water","gas","communication","emergency"] } }
+        { type: "MAP_SHOW_ASSETS", payload: { city: "Tel Aviv", sectors: ["electricity","water","gas","communication","first_responders"] } }
       ],
     };
   }

@@ -50,7 +50,7 @@ const VIEW_BY_CITY = {
   "Tel Aviv": { lat: 32.0853, lng: 34.7818, zoom: 11.0 },
 };
 
-const ALL_SECTORS = ["electricity", "water", "gas", "communication", "emergency"];
+const ALL_SECTORS = ["electricity", "water", "gas", "communication", "first_responders"];
 
 /**
  * POST /api/chat
@@ -226,7 +226,8 @@ app.post("/api/chat", async (req, res) => {
       parsed.requires_confirmation = true;
       parsed.actions = [
         { type: "MAP_SET_VIEW", payload: view },
-        { type: "MAP_SHOW_ASSETS", payload: { city, sectors } },
+        { type: "MAP_SHOW_ASSETS", payload: { city, sectors: ALL_SECTORS } },
+
       ];
     }
 
@@ -250,22 +251,35 @@ app.post("/api/execute", async (req, res) => {
     const artifacts = [];
 
     for (const a of actions) {
-      if (a?.type === "MAP_SHOW_ASSETS") {
+        if (a?.type === "MAP_SHOW_ASSETS") {
         const defaultCity = await getDefaultCityFromDb(db, "Jerusalem");
         const city = a.payload?.city || defaultCity;
 
-        const sectors = Array.isArray(a.payload?.sectors) ? a.payload.sectors : ALL_SECTORS;
+        // Normalize sectors: allow "emergency" alias -> "first_responders"
+        let sectors = Array.isArray(a.payload?.sectors) ? a.payload.sectors : ALL_SECTORS;
+
+        sectors = sectors
+            .map(s => String(s || "").trim().toLowerCase())
+            .map(s => (s === "emergency" ? "first_responders" : s));
+
+        // If user passed empty array or removed responders by mistake, default back
+        if (!sectors.length) sectors = ALL_SECTORS;
+
+        // Safety: only allow known sectors
+        sectors = sectors.filter(s => ALL_SECTORS.includes(s));
 
         const rows = await all(
-          db,
-          `SELECT id, name, sector, subtype, lat, lng, criticality
-           FROM assets
-           WHERE city = ? AND sector IN (${sectors.map(() => "?").join(",")})`,
-          [city, ...sectors]
+            db,
+            `SELECT id, name, sector, subtype, lat, lng, criticality
+            FROM assets
+            WHERE city = ?
+            AND sector IN (${sectors.map(() => "?").join(",")})`,
+            [city, ...sectors]
         );
 
         artifacts.push({ type: "assets", data: rows });
-      }
+        }
+
 
       if (a?.type === "SIM_RUN") {
         // Phase 2: we will add real sim artifacts and the Recommendations screen.
