@@ -1214,3 +1214,15 @@ html, body {
   border-radius: 999px;
   background: #999; /* overridden by JS */
 }
+
+/* Start hidden */
+#activeScenarioCard,
+#healthOverlay {
+  display: none;
+}
+
+/* Explicit “shown” states (JS will add these classes) */
+#activeScenarioCard.is-visible,
+#healthOverlay.is-visible {
+  display: block;
+}

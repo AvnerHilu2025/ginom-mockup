@@ -2,15 +2,31 @@
  * app.js
  * - Preserves existing HTML/CSS structure (no SPA router assumptions).
  * - English-only.
- * - No global APP reference (removes “APP not found” class of issues).
  * - Uses api.js for backend calls, with fallback.
+ *
+ * Fixes included:
+ * 1) updateAssetsOnMap(): removed out-of-scope `src` usage; `ASSETS_COUNT` updates correctly.
+ * 2) applyActionsSoft(): added MAP_SET_VIEW support (flyTo) so map centers/zooms as intended.
+ * 3) On approval: apply soft actions first (e.g., MAP_SET_VIEW), then execute to get artifacts (assets/sim_status).
  */
 
 import { SECTORS, ASSET_STATUS } from "./constants.js";
 import { apiChat, apiExecute, localFallbackReply } from "./api.js";
 
-
 let MAP = null;
+let SIM_RUNNING = false;
+let ASSETS_COUNT = 0; // source of truth for "are there assets on the map?"
+let PRESENT_SECTORS = new Set();
+// Local asset cache (all assets ever loaded)
+let ALL_ASSETS = [];
+// What sectors are currently visible on the map
+let VISIBLE_SECTORS = new Set();
+
+function updateUiVisibility() {
+  setVisibleClass("healthOverlay", hasAssetsOnMap());
+  setVisibleClass("activeScenarioCard", SIM_RUNNING);
+  setImpactTimelineVisible(SIM_RUNNING);
+}
 
 /* =========================
    Safe icon init (if Lucide exists)
@@ -22,15 +38,78 @@ try {
 /* =========================
    Helpers
    ========================= */
-function el(sel, root = document) { return root.querySelector(sel); }
-function els(sel, root = document) { return Array.from(root.querySelectorAll(sel)); }
+
+function tryHandleLocalSectorCommand(message) {
+  const m = message.toLowerCase().trim();
+
+  const addMatch = m.match(/^add\s+([a-z_]+)/);
+  const removeMatch = m.match(/^remove\s+([a-z_]+)/);
+
+  if (m === "clear all") {
+    VISIBLE_SECTORS.clear();
+    updateAssetsOnMap([], { fitBounds: false });
+    appendBubble({ role: "bot", text: "All sectors removed from the map." });
+    return true;
+  }
+
+  if (addMatch) {
+    const sector = addMatch[1];
+    VISIBLE_SECTORS.add(sector);
+
+    const filtered = ALL_ASSETS.filter(r => VISIBLE_SECTORS.has(r.sector));
+    updateAssetsOnMap(filtered, { fitBounds: true });
+
+    appendBubble({ role: "bot", text: `Sector "${sector}" added to the map.` });
+    return true;
+  }
+
+  if (removeMatch) {
+    const sector = removeMatch[1];
+    VISIBLE_SECTORS.delete(sector);
+
+    const filtered = ALL_ASSETS.filter(r => VISIBLE_SECTORS.has(r.sector));
+    updateAssetsOnMap(filtered, { fitBounds: false });
+
+    appendBubble({ role: "bot", text: `Sector "${sector}" removed from the map.` });
+    return true;
+  }
+
+  return false; // not a local command
+}
+
+function el(sel, root = document) {
+  return root.querySelector(sel);
+}
+function els(sel, root = document) {
+  return Array.from(root.querySelectorAll(sel));
+}
+
+function hasAssetsOnMap() {
+  return ASSETS_COUNT > 0;
+}
+
+function setVisibleClass(id, on) {
+  const node = document.getElementById(id);
+  if (!node) return;
+  node.classList.toggle("is-visible", !!on);
+}
+
+function updateHealthBarsVisibility() {
+  const cards = document.querySelectorAll(".overlay--health .metric.card[data-sector]");
+  if (!cards.length) return;
+
+  cards.forEach((card) => {
+    const key = card.getAttribute("data-sector");
+    const show = PRESENT_SECTORS.has(key);
+    card.style.display = show ? "" : "none";
+  });
+}
 
 function setImpactTimelineVisible(visible) {
   const elTL = document.querySelector(".impact-timeline");
   if (!elTL) return;
   elTL.classList.toggle("is-hidden", !visible);
 }
-
 
 function scrollChatToBottom(force = false) {
   const body = el(".assistant__body");
@@ -46,7 +125,6 @@ function scrollChatToBottom(force = false) {
     });
   }
 }
-
 
 function escapeHtml(s) {
   return String(s ?? "")
@@ -82,13 +160,42 @@ function appendBubble({ role, text, isProgress = false, extraHTML = "" }) {
   return bubble;
 }
 
+/**
+ * Soft / non-disruptive actions the client can execute immediately.
+ * IMPORTANT: Back-end can still return artifacts after /execute (assets, sim_status, etc.).
+ */
 function applyActionsSoft(actions = []) {
-  // Safe, non-disruptive actions that can be executed without approval.
   for (const a of actions) {
-    if (a?.type === "NAVIGATE" && a.payload?.url) {
+    if (!a?.type) continue;
+
+    if (a.type === "NAVIGATE" && a.payload?.url) {
       window.location.href = a.payload.url;
+      continue;
     }
-    // You can add other safe actions later if needed.
+
+    // NEW: Map centering/zooming from actions
+    if (a.type === "MAP_SET_VIEW" && a.payload && MAP) {
+      const lat = Number(a.payload.lat);
+      const lng = Number(a.payload.lng);
+      const zoom = a.payload.zoom != null ? Number(a.payload.zoom) : undefined;
+
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        try {
+          MAP.flyTo({
+            center: [lng, lat],
+            zoom: Number.isFinite(zoom) ? zoom : MAP.getZoom(),
+            speed: 1.2,
+            curve: 1.4,
+            essential: true,
+          });
+        } catch (e) {
+          console.warn("MAP_SET_VIEW flyTo failed:", e);
+        }
+      }
+      continue;
+    }
+
+    // Leave other action types (e.g., MAP_SHOW_ASSETS, SIM_RUN) to /execute.
   }
 }
 
@@ -119,7 +226,9 @@ function renderApproval(actions = [], onApprove) {
     body.appendChild(wrapper);
   }
 
-  try { if (window.lucide?.createIcons) window.lucide.createIcons(); } catch (_) {}
+  try {
+    if (window.lucide?.createIcons) window.lucide.createIcons();
+  } catch (_) {}
 
   wrapper.querySelector('[data-approve="1"]')?.addEventListener("click", async () => {
     wrapper.remove();
@@ -128,28 +237,16 @@ function renderApproval(actions = [], onApprove) {
 
   wrapper.querySelector('[data-reject="1"]')?.addEventListener("click", () => {
     wrapper.remove();
-    appendBubble({ role: "bot", text: "Understood — actions rejected. Tell me what you want to change." });
+    appendBubble({
+      role: "bot",
+      text: "Understood — actions rejected. Tell me what you want to change.",
+    });
   });
 }
-
 
 /* =========================
    Map Assets (GeoJSON circles)
    ========================= */
-const SECTOR_DEFAULT_COLOR = "#94A3B8";
-
-const SECTOR_COLOR_EXPR = [
-  "match",
-  ["get", "sector"],
-  "electricity", SECTORS.electricity.color,
-  "water", SECTORS.water.color,
-  "gas", SECTORS.gas.color,
-  "communication", SECTORS.communication.color,
-  "first_responders", SECTORS.first_responders.color,
-  SECTOR_DEFAULT_COLOR
-];
-
-
 function ensureAssetsLayer(map) {
   if (!map) return;
   if (map.getSource("ginom-assets")) return;
@@ -164,26 +261,25 @@ function ensureAssetsLayer(map) {
     type: "circle",
     source: "ginom-assets",
     paint: {
-      "circle-radius": [
-        "interpolate", ["linear"], ["zoom"],
-        8, 3,
-        12, 5,
-        15, 8
-      ],
+      "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 3, 12, 5, 15, 8],
       "circle-color": [
         "match",
         ["get", "sector"],
-        "electricity", SECTORS.electricity.color,
-        "water", SECTORS.water.color,
-        "gas", SECTORS.gas.color,
-        "communication", SECTORS.communication.color,
-        "first_responders", SECTORS.first_responders.color,
-        "#94A3B8" // default
+        "electricity",
+        SECTORS.electricity.color,
+        "water",
+        SECTORS.water.color,
+        "gas",
+        SECTORS.gas.color,
+        "communication",
+        SECTORS.communication.color,
+        "first_responders",
+        SECTORS.first_responders.color,
+        "#94A3B8",
       ],
-
       "circle-stroke-color": "rgba(255,255,255,0.9)",
       "circle-stroke-width": 1,
-      "circle-opacity": 0.9
+      "circle-opacity": 0.9,
     },
   });
 
@@ -225,8 +321,8 @@ function assetsToGeoJSON(rows = []) {
   return {
     type: "FeatureCollection",
     features: rows
-      .filter(r => Number.isFinite(Number(r.lng)) && Number.isFinite(Number(r.lat)))
-      .map(r => ({
+      .filter((r) => Number.isFinite(Number(r.lng)) && Number.isFinite(Number(r.lat)))
+      .map((r) => ({
         type: "Feature",
         properties: {
           id: r.id,
@@ -243,19 +339,46 @@ function assetsToGeoJSON(rows = []) {
   };
 }
 
+/**
+ * FIXED: updates map source exactly once, in the correct scope, and updates ASSETS_COUNT reliably.
+ */
 function updateAssetsOnMap(rows = [], { fitBounds = true } = {}) {
   if (!MAP) return;
 
   const doUpdate = () => {
     ensureAssetsLayer(MAP);
-    const src = MAP.getSource("ginom-assets");
-    if (!src) return;
 
+    const src = MAP.getSource("ginom-assets");
+    if (!src) {
+      console.warn("Map source 'ginom-assets' not found (ensureAssetsLayer may have failed).");
+      return;
+    }
+
+    // Build GeoJSON and update map
     const geo = assetsToGeoJSON(rows);
     src.setData(geo);
 
+    // Update sector visibility set based on CURRENT rows
+    PRESENT_SECTORS = new Set(
+      (rows || [])
+        .map(r => String(r.sector || "").trim())
+        .filter(Boolean)
+    );
+
+    // Show only relevant sector health cards
+    updateHealthBarsVisibility();
+
+    // Overlay container visibility (your existing logic)
+    ASSETS_COUNT = geo.features.length;
+    updateUiVisibility();
+
+    // Fit bounds only when we have features
     if (fitBounds && geo.features.length) {
-      let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+      let minLng = Infinity,
+        minLat = Infinity,
+        maxLng = -Infinity,
+        maxLat = -Infinity;
+
       for (const f of geo.features) {
         const [lng, lat] = f.geometry.coordinates;
         minLng = Math.min(minLng, lng);
@@ -263,33 +386,63 @@ function updateAssetsOnMap(rows = [], { fitBounds = true } = {}) {
         maxLng = Math.max(maxLng, lng);
         maxLat = Math.max(maxLat, lat);
       }
-      MAP.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 60, duration: 800 });
+
+      MAP.fitBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat],
+        ],
+        { padding: 60, duration: 800 }
+      );
     }
   };
 
-  // If style isn't loaded yet, wait
-  if (!MAP.isStyleLoaded()) {
-    MAP.once("load", doUpdate);
-  } else {
-    doUpdate();
+  // Ensure map is ready before updating sources/layers
+  if (!MAP.loaded()) {
+    MAP.once("load", () => {
+      // Sometimes style isn't fully ready right at "load" - wait for idle
+      MAP.once("idle", doUpdate);
+    });
+    return;
   }
+
+  // Map is loaded, but style might be mid-refresh; idle is safest for layers/sources
+  if (!MAP.isStyleLoaded?.() || !MAP.isStyleLoaded()) {
+    MAP.once("idle", doUpdate);
+    return;
+  }
+
+  doUpdate();
 }
 
 function applyExecuteArtifacts(execResult) {
   const artifacts = execResult?.artifacts || [];
+
   for (const a of artifacts) {
     if (a?.type === "assets" && Array.isArray(a.data)) {
-      updateAssetsOnMap(a.data, { fitBounds: true });
+      // Cache once (or refresh cache)
+      ALL_ASSETS = a.data;
+
+      // If nothing selected yet → show everything received
+      if (VISIBLE_SECTORS.size === 0) {
+        VISIBLE_SECTORS = new Set(a.data.map(r => r.sector));
+      }
+
+      // Render only visible sectors
+      const filtered = a.data.filter(r => VISIBLE_SECTORS.has(r.sector));
+      updateAssetsOnMap(filtered, { fitBounds: true });
     }
 
     if (a?.type === "sim_status") {
-      // Show timeline as soon as a simulation starts/runs
-      setImpactTimelineVisible(true);
+      const state = String(a?.data?.state || "").toLowerCase();
+      SIM_RUNNING = state === "running" || state === "started" || state === "in_progress";
+      updateUiVisibility();
     }
   }
+
+  // Safety: even if no artifacts, re-align UI
+  updateUiVisibility();
 }
-
-
 
 /* =========================
    Read Simulation Config (only if simconf.html fields exist)
@@ -338,7 +491,6 @@ function initMapIfPresent() {
     console.warn("Map container height is 0. Ensure parent and #map have height: 100%.");
   }
 
-  // Token must exist
   const token =
     window.MAPBOX_TOKEN ||
     window.mapboxToken ||
@@ -349,7 +501,7 @@ function initMapIfPresent() {
   const map = new mapboxgl.Map({
     container: "map",
     style: "mapbox://styles/mapbox/streets-v12",
-    center: [35.2137, 31.7683], // Jerusalem
+    center: [35.2137, 31.7683], // Jerusalem (default)
     zoom: 10.5,
     pitch: 0,
     bearing: 0,
@@ -359,7 +511,7 @@ function initMapIfPresent() {
   map.addControl(new mapboxgl.NavigationControl({ visualizePitch: true }), "bottom-left");
 
   map.on("load", () => {
-    // Keep your demo links/nodes example (minimal, safe)
+    // Demo links/nodes example (safe)
     const nodes = {
       type: "FeatureCollection",
       features: [
@@ -372,8 +524,8 @@ function initMapIfPresent() {
     const links = {
       type: "FeatureCollection",
       features: [
-        { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[34.78, 32.08],[34.83, 32.10]] } },
-        { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[34.78, 32.08],[34.74, 32.05]] } },
+        { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[34.78, 32.08], [34.83, 32.10]] } },
+        { type: "Feature", properties: {}, geometry: { type: "LineString", coordinates: [[34.78, 32.08], [34.74, 32.05]] } },
       ],
     };
 
@@ -385,12 +537,7 @@ function initMapIfPresent() {
         id: "links-glow",
         type: "line",
         source: "links",
-        paint: {
-          "line-color": "#C3CFEF",
-          "line-width": 4,
-          "line-opacity": 0.35,
-          "line-blur": 6,
-        },
+        paint: { "line-color": "#C3CFEF", "line-width": 4, "line-opacity": 0.35, "line-blur": 6 },
       });
     }
 
@@ -399,11 +546,7 @@ function initMapIfPresent() {
         id: "links-core",
         type: "line",
         source: "links",
-        paint: {
-          "line-color": "#1E42AC",
-          "line-width": 1.6,
-          "line-opacity": 0.85,
-        },
+        paint: { "line-color": "#1E42AC", "line-width": 1.6, "line-opacity": 0.85 },
       });
     }
 
@@ -412,12 +555,7 @@ function initMapIfPresent() {
         id: "nodes-glow",
         type: "circle",
         source: "nodes",
-        paint: {
-          "circle-radius": 12,
-          "circle-color": "#E5C3F0",
-          "circle-opacity": 0.18,
-          "circle-blur": 0.6,
-        },
+        paint: { "circle-radius": 12, "circle-color": "#E5C3F0", "circle-opacity": 0.18, "circle-blur": 0.6 },
       });
     }
 
@@ -426,12 +564,7 @@ function initMapIfPresent() {
         id: "nodes-core",
         type: "circle",
         source: "nodes",
-        paint: {
-          "circle-radius": 4.5,
-          "circle-color": "#F2F2F2",
-          "circle-stroke-color": "#1E42AC",
-          "circle-stroke-width": 2,
-        },
+        paint: { "circle-radius": 4.5, "circle-color": "#F2F2F2", "circle-stroke-color": "#1E42AC", "circle-stroke-width": 2 },
       });
     }
 
@@ -449,6 +582,7 @@ function initMapIfPresent() {
     });
   });
 
+  window.__ginomMap = map;
   return map;
 }
 
@@ -511,7 +645,6 @@ function initChat() {
   let thinkingBubbleEl = null;
 
   function setThinking(on) {
-    const root = document.documentElement; // or document.body
     inFlight = on;
 
     // Disable composer controls
@@ -521,7 +654,6 @@ function initChat() {
     if (send) send.disabled = on;
 
     if (on) {
-      // Add a "thinking" bubble (bot side)
       thinkingBubbleEl = appendBubble({
         role: "bot",
         text: "GINOM AI is thinking…",
@@ -531,36 +663,31 @@ function initChat() {
             <div class="spinner" aria-hidden="true"></div>
             <div style="font-size:12px; opacity:0.9; font-weight:700;">Working on it</div>
           </div>
-        `
+        `,
       });
       scrollChatToBottom(true);
     } else {
-      // Remove thinking bubble if it exists
       if (thinkingBubbleEl && thinkingBubbleEl.parentNode) {
         thinkingBubbleEl.parentNode.removeChild(thinkingBubbleEl);
       }
       scrollChatToBottom(true);
       thinkingBubbleEl = null;
-
-      // Restore focus
       setTimeout(() => input?.focus(), 0);
     }
   }
 
-
-  if (!input || !send) {
-    // Not all pages include chat
-    return;
-  }
+  if (!input || !send) return; // Not all pages include chat
 
   async function handleSend() {
-    if (inFlight) return; // prevent multiple requests
+    if (inFlight) return;
     const message = (input.value || "").trim();
     if (!message) return;
 
     input.value = "";
     appendBubble({ role: "user", text: message });
-
+    if (tryHandleLocalSectorCommand(message)) {
+      return;
+    }
     setThinking(true);
 
     let resp;
@@ -570,7 +697,6 @@ function initChat() {
         simcfg: readSimConfigFromForm(),
       });
     } catch (e) {
-      // Backend down -> fallback (or show a clean error)
       resp = localFallbackReply(message);
     } finally {
       setThinking(false);
@@ -579,9 +705,14 @@ function initChat() {
     appendBubble({ role: "bot", text: resp?.assistant_message || "No response received." });
 
     const actions = resp?.actions || [];
+
     if (resp?.requires_confirmation && actions.length) {
       renderApproval(actions, async () => {
         if (inFlight) return;
+
+        // NEW: apply safe map actions immediately on approval (e.g., MAP_SET_VIEW)
+        applyActionsSoft(actions);
+
         setThinking(true);
 
         try {
@@ -605,7 +736,6 @@ function initChat() {
     }
   }
 
-
   send.addEventListener("click", () => {
     if (!inFlight) handleSend();
   });
@@ -616,7 +746,6 @@ function initChat() {
       if (!inFlight) handleSend();
     }
   });
-
 
   // Wire existing quick action buttons if present
   els(".ghost-action").forEach((btn) => {
@@ -649,7 +778,9 @@ function initChat() {
     }
   });
 
-  try { if (window.lucide?.createIcons) window.lucide.createIcons(); } catch (_) {}
+  try {
+    if (window.lucide?.createIcons) window.lucide.createIcons();
+  } catch (_) {}
 }
 
 function syncSectorBarsToConstants() {
@@ -682,15 +813,22 @@ function syncSectorBarsToConstants() {
   console.log("Sector bars colored from constants.js");
 }
 
-
-
 /* =========================
    Boot
    ========================= */
 document.addEventListener("DOMContentLoaded", () => {
-  setImpactTimelineVisible(false);
+  SIM_RUNNING = false;
+
   MAP = initMapIfPresent();
   initDecisionSupportChartsIfPresent();
   initChat();
   syncSectorBarsToConstants();
+
+  // Initial state: no simulation and no assets => overlays hidden
+  updateUiVisibility();
+
+  // After map/tiles settle, re-align UI once more
+  if (MAP) {
+    MAP.on("idle", () => updateUiVisibility());
+  }
 });
