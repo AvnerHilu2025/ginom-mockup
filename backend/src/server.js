@@ -7,6 +7,7 @@ import { openDb, initSchema, all } from "./db.js";
 import { ollamaChat } from "./ollama.js";
 import { systemPrompt, userPrompt } from "./prompts.js";
 import { ragSearch } from "./rag.js";
+import { seedCity, rollbackSeedRun, getLatestSeedRunIdForCity } from "./seed_city.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const DB_PATH = process.env.DB_PATH || "./demo.db";
@@ -19,6 +20,108 @@ const db = openDb(DB_PATH);
 await initSchema(db, path.resolve("src/schema.sql"));
 
 app.get("/health", (req, res) => res.json({ ok: true }));
+
+/* ============================================================
+   Dependencies API
+   ============================================================ */
+/**
+ * GET /api/dependencies/chain
+ * Query:
+ *   asset_id=ASSET_ID (required)
+ *   direction=upstream|downstream (default: upstream)
+ *   max_depth=number (default: 4, max: 12)
+ *
+ * Data model: asset_dependencies is Provider -> Consumer
+ * - upstream:   consumer -> provider (what does this asset depend on?)
+ * - downstream: provider -> consumer (who depends on this asset?)
+ */
+app.get("/api/dependencies/chain", async (req, res) => {
+  try {
+    const asset_id = String(req.query.asset_id || "").trim();
+    const direction = String(req.query.direction || "upstream").toLowerCase();
+    const max_depth = Math.max(1, Math.min(12, Number(req.query.max_depth || 4)));
+
+    if (!asset_id) return res.status(400).json({ error: "asset_id is required" });
+    if (!["upstream", "downstream"].includes(direction)) {
+      return res.status(400).json({ error: "direction must be 'upstream' or 'downstream'" });
+    }
+
+    const deps = await all(
+      db,
+      `SELECT provider_asset_id, consumer_asset_id, dependency_type, priority
+       FROM asset_dependencies
+       WHERE is_active = 1`
+    );
+
+    const visited = new Set([asset_id]);
+    const nodesSet = new Set([asset_id]);
+    const edges = [];
+    const q = [{ id: asset_id, depth: 0 }];
+    const seenEdges = new Set();
+
+    const edgeKey = (from, to, t, p) => `${from}__${to}__${t || ""}__${p ?? ""}`;
+
+    while (q.length) {
+      const { id, depth } = q.shift();
+      if (depth >= max_depth) continue;
+
+      for (const d of deps) {
+        const match =
+          direction === "upstream"
+            ? d.consumer_asset_id === id
+            : d.provider_asset_id === id;
+
+        if (!match) continue;
+
+        const from =
+          direction === "upstream" ? d.consumer_asset_id : d.provider_asset_id;
+        const to =
+          direction === "upstream" ? d.provider_asset_id : d.consumer_asset_id;
+
+        const k = edgeKey(from, to, d.dependency_type, d.priority);
+        if (!seenEdges.has(k)) {
+          seenEdges.add(k);
+          edges.push({
+            from,
+            to,
+            dependency_type: d.dependency_type,
+            priority: d.priority,
+            level: depth + 1,
+          });
+        }
+
+        nodesSet.add(from);
+        nodesSet.add(to);
+
+        if (!visited.has(to)) {
+          visited.add(to);
+          q.push({ id: to, depth: depth + 1 });
+        }
+      }
+    }
+
+    const ids = Array.from(nodesSet);
+    const placeholders = ids.map(() => "?").join(",");
+
+    const nodes = await all(
+      db,
+      `SELECT id, name, sector, subtype, lat, lng, city, criticality
+       FROM assets
+       WHERE id IN (${placeholders})`,
+      ids
+    );
+
+    if (!nodes.some((n) => n.id === asset_id)) {
+      return res.status(404).json({ error: `asset_id not found: ${asset_id}` });
+    }
+
+    return res.json({ root_asset_id: asset_id, direction, max_depth, nodes, edges });
+  } catch (err) {
+    console.error("GET /api/dependencies/chain failed:", err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
+
 
 /* =========================
    Helpers: city inference + defaults
@@ -49,6 +152,73 @@ const VIEW_BY_CITY = {
   Jerusalem: { lat: 31.7683, lng: 35.2137, zoom: 11.0 },
   "Tel Aviv": { lat: 32.0853, lng: 34.7818, zoom: 11.0 },
 };
+async function resolveCityBoundary(cityName) {
+  const q = String(cityName || "").trim();
+  if (!q) return null;
+
+  // Nominatim requires a User-Agent / Referer
+  const url =
+    "https://nominatim.openstreetmap.org/search?" +
+    new URLSearchParams({
+      q,
+      format: "jsonv2",
+      limit: "1",
+      polygon_geojson: "1",
+      addressdetails: "1",
+    }).toString();
+
+  const resp = await fetch(url, {
+    headers: {
+      "User-Agent": "GINOM-Mockup/1.0 (demo)",
+      "Accept": "application/json",
+    },
+  });
+
+  if (!resp.ok) return null;
+  const arr = await resp.json();
+  if (!Array.isArray(arr) || !arr.length) return null;
+
+  const r = arr[0];
+  const lat = Number(r.lat);
+  const lng = Number(r.lon);
+  const bb = Array.isArray(r.boundingbox) ? r.boundingbox.map(Number) : null;
+  // boundingbox: [south, north, west, east]
+  const bbox =
+    bb && bb.length === 4
+      ? { latMin: bb[0], latMax: bb[1], lngMin: bb[2], lngMax: bb[3] }
+      : null;
+
+  const boundary_json = r.geojson || null;
+
+  // Rough zoom heuristic from bbox size
+  let zoom = 11;
+  if (bbox) {
+    const dLat = Math.abs(bbox.latMax - bbox.latMin);
+    const dLng = Math.abs(bbox.lngMax - bbox.lngMin);
+    const d = Math.max(dLat, dLng);
+    if (d > 3) zoom = 7;
+    else if (d > 1.5) zoom = 8;
+    else if (d > 0.7) zoom = 9;
+    else if (d > 0.3) zoom = 10;
+    else zoom = 11.5;
+  }
+
+  return {
+    city: r.name || q,
+    view: { lat: Number.isFinite(lat) ? lat : 0, lng: Number.isFinite(lng) ? lng : 0, zoom },
+    bbox,
+    boundary_json,
+  };
+}
+
+async function countAssetsInCity(db, city) {
+  const rows = await all(
+    db,
+    `SELECT COUNT(*) AS c FROM assets WHERE city = ?`,
+    [city]
+  );
+  return Number(rows?.[0]?.c || 0);
+}
 
 const ALL_SECTORS = ["electricity", "water", "gas", "communication", "first_responders"];
 
@@ -92,6 +262,65 @@ app.post("/api/chat", async (req, res) => {
       return Array.from(new Set(found));
     }
 
+        // ---------- City intent: user typed a city name (e.g., "London") ----------
+    
+
+    const looksLikeCity =
+      /^[a-zA-Z\s.'-]{2,}$/.test(text) &&
+      !text.includes("show") &&
+      !text.includes("assets") &&
+      !text.includes("simulate") &&
+      !text.includes("simulation") &&
+      !text.includes("run") &&
+      !text.includes("config");
+
+    if (looksLikeCity) {
+      const resolved = await resolveCityBoundary(text);
+      const city = resolved?.city || text;
+
+      // Focus map even if we cannot seed yet
+      const view = resolved?.view || VIEW_BY_CITY[city] || { lat: 31.7683, lng: 35.2137, zoom: 11.0 };
+
+      const c = await countAssetsInCity(db, city);
+
+      if (c === 0) {
+        // Ask to seed
+        return res.json({
+          assistant_message:
+            `I focused the map on ${city}. No assets were found for this city. ` +
+            `Would you like me to generate synthetic assets for ${city} and load them on the map?`,
+          requires_confirmation: true,
+          actions: [
+            { type: "MAP_SET_VIEW", payload: view },
+            {
+              type: "SEED_CITY",
+              payload: {
+                city,
+                profile: "balanced",
+                random_seed: 1234,
+                boundary: resolved
+                  ? { bbox: resolved.bbox, center: { lat: view.lat, lng: view.lng }, boundary_json: resolved.boundary_json }
+                  : null,
+              },
+            },
+          ],
+          questions: [],
+        });
+      }
+
+      // If assets already exist, show them
+      return res.json({
+        assistant_message: `I focused the map on ${city}. Found ${c} assets. Display them?`,
+        requires_confirmation: true,
+        actions: [
+          { type: "MAP_SET_VIEW", payload: view },
+          { type: "MAP_SHOW_ASSETS", payload: { city, sectors: ALL_SECTORS } },
+        ],
+        questions: [],
+      });
+    }
+
+
     // ---------- city ----------
     const cityFromMsg = pickCityFromMessage(message);
     const defaultCity = await getDefaultCityFromDb(db, "Jerusalem");
@@ -103,12 +332,14 @@ app.post("/api/chat", async (req, res) => {
     // =========================
     // FAST INTENT ROUTER (NO LLM)
     // =========================
-
+    
     const wantsShowAssets =
       (text.includes("show") && (text.includes("asset") || text.includes("infrastructure"))) ||
       text === "show assets" ||
       text.includes("display assets") ||
       text.includes("show infrastructure") ||
+      text.includes("present assets") ||
+      text.includes("display assets") ||
       text.includes("show assets in");
 
     if (wantsShowAssets) {
@@ -251,6 +482,71 @@ app.post("/api/execute", async (req, res) => {
     const artifacts = [];
 
     for (const a of actions) {
+              if (a?.type === "SEED_CITY") {
+        const city = a.payload?.city;
+        const profile = a.payload?.profile || "balanced";
+        const random_seed = a.payload?.random_seed ?? 1234;
+
+        const boundary = a.payload?.boundary;
+        if (!city) {
+          artifacts.push({ type: "error", data: { message: "SEED_CITY missing city" } });
+          continue;
+        }
+        if (!boundary?.bbox) {
+          artifacts.push({ type: "error", data: { message: "SEED_CITY missing boundary bbox (resolve city first)" } });
+          continue;
+        }
+
+        const result = await seedCity(db, {
+          city,
+          boundary,
+          profile,
+          random_seed,
+          created_by: "chat",
+        });
+
+        // Return the newly created assets so frontend can render immediately
+        const rows = await all(
+          db,
+          `SELECT id, name, sector, subtype, lat, lng, criticality
+           FROM assets
+           WHERE city = ? AND seed_run_id = ?`,
+          [city, result.seed_run_id]
+        );
+
+        artifacts.push({
+          type: "assets",
+          data: rows,
+        });
+
+        artifacts.push({
+          type: "seed_status",
+          data: result,
+        });
+
+        continue;
+      }
+
+      if (a?.type === "SEED_ROLLBACK") {
+        const seed_run_id = a.payload?.seed_run_id;
+        const city = a.payload?.city;
+
+        let id = seed_run_id;
+        if (!id && city) {
+          id = await getLatestSeedRunIdForCity(db, city);
+        }
+
+        if (!id) {
+          artifacts.push({ type: "error", data: { message: "SEED_ROLLBACK missing seed_run_id (or no applied seed found for city)" } });
+          continue;
+        }
+
+        const rr = await rollbackSeedRun(db, { seed_run_id: id, hard: true });
+
+        artifacts.push({ type: "seed_rollback", data: rr });
+        continue;
+      }
+
         if (a?.type === "MAP_SHOW_ASSETS") {
         const defaultCity = await getDefaultCityFromDb(db, "Jerusalem");
         const city = a.payload?.city || defaultCity;
