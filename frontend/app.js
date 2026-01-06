@@ -17,10 +17,232 @@ let MAP = null;
 let SIM_RUNNING = false;
 let ASSETS_COUNT = 0; // source of truth for "are there assets on the map?"
 let PRESENT_SECTORS = new Set();
+let CURRENT_CITY = localStorage.getItem("ginom.currentCity") || "Jerusalem";
 // Local asset cache (all assets ever loaded)
 let ALL_ASSETS = [];
 // What sectors are currently visible on the map
 let VISIBLE_SECTORS = new Set();
+// === GINOM DEPENDENCIES (BEGIN) ===
+// Draw dependency chain on the map when clicking an asset.
+
+const BACKEND_BASE =
+  (window.DEMO_BACKEND_BASE && String(window.DEMO_BACKEND_BASE)) ||
+  "http://localhost:3000";
+
+let __depsBgClickBound = false;
+let __lastAssetLayerClickAt = 0;
+
+function ensureDependencyLayers(map) {
+  if (!map) return;
+
+  if (!map.getSource("ginom-deps")) {
+    map.addSource("ginom-deps", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  }
+  if (!map.getSource("ginom-chain-selected")) {
+    map.addSource("ginom-chain-selected", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  }
+  if (!map.getSource("ginom-chain-related")) {
+    map.addSource("ginom-chain-related", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  }
+
+  const beforeId = map.getLayer("ginom-assets-circle") ? "ginom-assets-circle" : undefined;
+
+  if (!map.getLayer("ginom-deps-line-glow")) {
+    map.addLayer(
+      {
+        id: "ginom-deps-line-glow",
+        type: "line",
+        source: "ginom-deps",
+        paint: {
+          // CHANGED: glow follows edge color (soft)
+          "line-color": [
+            "case",
+            ["==", ["get", "same_sector"], 1],
+            "rgba(30, 66, 172, 0.65)",  // blue-ish glow
+            "rgba(239, 68, 68, 0.55)",  // red-ish glow
+          ],
+          "line-width": 6,
+          "line-opacity": 0.35,
+          "line-blur": 4,
+        },
+      },
+      beforeId
+    );
+  }
+
+  if (!map.getLayer("ginom-deps-line")) {
+    map.addLayer(
+      {
+        id: "ginom-deps-line",
+        type: "line",
+        source: "ginom-deps",
+        paint: {
+          // CHANGED: blue if same sector, red if cross-sector
+          "line-color": [
+            "case",
+            ["==", ["get", "same_sector"], 1],
+            "#1E42AC", // blue
+            "#EF4444", // red
+          ],
+          "line-width": 2,
+          "line-opacity": 0.9,
+        },
+      },
+      beforeId
+    );
+  }
+
+
+  if (!map.getLayer("ginom-chain-related-circle")) {
+    map.addLayer({
+      id: "ginom-chain-related-circle",
+      type: "circle",
+      source: "ginom-chain-related",
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 5, 12, 7, 15, 10],
+        "circle-color": "rgba(30, 66, 172, 0.18)",
+        "circle-stroke-color": "rgba(30, 66, 172, 0.85)",
+        "circle-stroke-width": 2,
+      },
+    });
+  }
+
+  if (!map.getLayer("ginom-chain-selected-circle")) {
+    map.addLayer({
+      id: "ginom-chain-selected-circle",
+      type: "circle",
+      source: "ginom-chain-selected",
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 7, 12, 10, 15, 14],
+        "circle-color": "rgba(30, 66, 172, 0.30)",
+        "circle-stroke-color": "#1E42AC",
+        "circle-stroke-width": 3,
+      },
+    });
+  }
+}
+
+function clearDependencyChain() {
+  if (!MAP) return;
+  MAP.getSource("ginom-deps")?.setData({ type: "FeatureCollection", features: [] });
+  MAP.getSource("ginom-chain-selected")?.setData({ type: "FeatureCollection", features: [] });
+  MAP.getSource("ginom-chain-related")?.setData({ type: "FeatureCollection", features: [] });
+}
+
+function toPointFeature(a, extraProps = {}) {
+  if (!a) return null;
+  const lng = Number(a.lng);
+  const lat = Number(a.lat);
+  if (!Number.isFinite(lng) || !Number.isFinite(lat)) return null;
+
+  return {
+    type: "Feature",
+    properties: {
+      id: a.id,
+      name: a.name,
+      sector: a.sector,
+      subtype: a.subtype,
+      criticality: a.criticality,
+      ...extraProps,
+    },
+    geometry: { type: "Point", coordinates: [lng, lat] },
+  };
+}
+
+function depsEdgesToGeoJSON(edges = [], assetsById = new Map()) {
+  return {
+    type: "FeatureCollection",
+    features: (edges || [])
+      .map((e) => {
+        const from = assetsById.get(e.from);
+        const to = assetsById.get(e.to);
+        if (!from || !to) return null;
+
+        const aLng = Number(from.lng), aLat = Number(from.lat);
+        const bLng = Number(to.lng), bLat = Number(to.lat);
+        if (![aLng, aLat, bLng, bLat].every(Number.isFinite)) return null;
+
+        const fromSector = String(from.sector || "");
+        const toSector = String(to.sector || "");
+        const sameSector = fromSector && toSector && fromSector === toSector;
+
+        return {
+          type: "Feature",
+          properties: {
+            from: e.from,
+            to: e.to,
+            dependency_type: e.dependency_type || "",
+            priority: e.priority ?? null,
+            level: e.level ?? null,
+
+            // NEW: for styling
+            from_sector: fromSector,
+            to_sector: toSector,
+            same_sector: sameSector ? 1 : 0, // use 0/1 for Mapbox expressions
+          },
+          geometry: { type: "LineString", coordinates: [[aLng, aLat], [bLng, bLat]] },
+        };
+      })
+      .filter(Boolean),
+  };
+}
+
+async function showDependencyChain(assetId, { direction = "upstream", maxDepth = 4, fitBounds = false } = {}) {
+  if (!MAP || !assetId) return;
+
+  ensureDependencyLayers(MAP);
+
+  const url =
+    `${BACKEND_BASE}/api/dependencies/chain?` +
+    `asset_id=${encodeURIComponent(assetId)}` +
+    `&direction=${encodeURIComponent(direction)}` +
+    `&max_depth=${encodeURIComponent(String(maxDepth))}`;
+
+  let data;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (err) {
+    console.warn("Failed to load dependency chain:", err);
+    return;
+  }
+
+  const nodes = Array.isArray(data.nodes) ? data.nodes : [];
+  const edges = Array.isArray(data.edges) ? data.edges : [];
+
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const root = byId.get(assetId);
+
+  const selectedFeature = root ? [toPointFeature(root, { kind: "selected" })].filter(Boolean) : [];
+  const relatedFeatures = nodes
+    .filter((n) => n && n.id && n.id !== assetId)
+    .map((n) => toPointFeature(n, { kind: "related" }))
+    .filter(Boolean);
+
+  const depsGeo = depsEdgesToGeoJSON(edges, byId);
+
+  MAP.getSource("ginom-deps")?.setData(depsGeo);
+  MAP.getSource("ginom-chain-selected")?.setData({ type: "FeatureCollection", features: selectedFeature });
+  MAP.getSource("ginom-chain-related")?.setData({ type: "FeatureCollection", features: relatedFeatures });
+
+  if (fitBounds) {
+    const coords = [...selectedFeature, ...relatedFeatures].map((f) => f.geometry.coordinates);
+    if (coords.length) {
+      let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+      for (const [lng, lat] of coords) {
+        minLng = Math.min(minLng, lng);
+        minLat = Math.min(minLat, lat);
+        maxLng = Math.max(maxLng, lng);
+        maxLat = Math.max(maxLat, lat);
+      }
+      MAP.fitBounds([[minLng, minLat], [maxLng, maxLat]], { padding: 80, duration: 650 });
+    }
+  }
+}
+
+// === GINOM DEPENDENCIES (END) ===
+
 
 function updateUiVisibility() {
   setVisibleClass("healthOverlay", hasAssetsOnMap());
@@ -169,15 +391,24 @@ function applyActionsSoft(actions = []) {
     if (!a?.type) continue;
 
     if (a.type === "NAVIGATE" && a.payload?.url) {
+      console.log("MAP_SET_VIEW payload:", a.payload.city);
       window.location.href = a.payload.url;
       continue;
     }
 
     // NEW: Map centering/zooming from actions
     if (a.type === "MAP_SET_VIEW" && a.payload && MAP) {
+      
       const lat = Number(a.payload.lat);
       const lng = Number(a.payload.lng);
       const zoom = a.payload.zoom != null ? Number(a.payload.zoom) : undefined;
+      console.log("MAP_SET_VIEW payload:", a.payload);
+      // NEW: persist current city so the sim modal uses the correct area
+      if (a?.payload?.city) {
+        CURRENT_CITY = a.payload.city;
+        localStorage.setItem("ginom.currentCity", CURRENT_CITY);
+      }
+
 
       if (Number.isFinite(lat) && Number.isFinite(lng)) {
         try {
@@ -314,7 +545,23 @@ function ensureAssetsLayer(map) {
       .setLngLat(e.lngLat)
       .setHTML(html)
       .addTo(map);
+            // === GINOM DEPENDENCIES (BEGIN) ===
+      __lastAssetLayerClickAt = Date.now();
+      showDependencyChain(String(p.id || ""), { direction: "upstream", maxDepth: 4, fitBounds: false });
+      // === GINOM DEPENDENCIES (END) ===
+
   });
+    // === GINOM DEPENDENCIES (BEGIN): clear chain on empty map click ===
+  if (!__depsBgClickBound) {
+    __depsBgClickBound = true;
+    map.on("click", (e) => {
+      if (Date.now() - __lastAssetLayerClickAt < 250) return;
+      const hits = map.queryRenderedFeatures(e.point, { layers: ["ginom-assets-circle"] });
+      if (!hits.length) clearDependencyChain();
+    });
+  }
+  // === GINOM DEPENDENCIES (END) ===
+
 }
 
 function assetsToGeoJSON(rows = []) {
@@ -682,6 +929,15 @@ function initChat() {
     if (inFlight) return;
     const message = (input.value || "").trim();
     if (!message) return;
+    if (/^(run simulation|simulate|start simulation)$/i.test(message)) {
+      // clear input to keep UX consistent
+      input.value = "";
+      appendBubble({ role: "user", text: message });
+
+      // open overlay (must exist in index.html + styles.css + app.js helpers)
+      openSimConfigModal?.();
+      return;
+    }
 
     input.value = "";
     appendBubble({ role: "user", text: message });
@@ -750,7 +1006,7 @@ function initChat() {
   // Wire existing quick action buttons if present
   els(".ghost-action").forEach((btn) => {
     const t = (btn.textContent || "").toLowerCase();
-    if (t.includes("run simulation")) btn.addEventListener("click", () => (window.location.href = "./simconf.html"));
+    if (t.includes("run simulation")) btn.addEventListener("click", () => openSimConfigModal?.());
     if (t.includes("upload")) btn.addEventListener("click", () => appendBubble({ role: "bot", text: "Upload flow is not implemented in this demo yet." }));
     if (t.includes("dependencies")) btn.addEventListener("click", () => appendBubble({ role: "bot", text: "Dependencies view is not implemented in this demo yet." }));
   });
@@ -813,6 +1069,86 @@ function syncSectorBarsToConstants() {
   console.log("Sector bars colored from constants.js");
 }
 
+function openSimConfigModal() {
+  const overlay = document.getElementById("simOverlay");
+  const canvas = document.querySelector(".canvas");
+  if (!overlay || !canvas) return;
+
+  // Fill values
+  const cityEl = document.getElementById("simCity");
+  const assetsEl = document.getElementById("simAssetsCount");
+  const sectorsEl = document.getElementById("simSectorsCount");
+  if (cityEl) cityEl.value = CURRENT_CITY;
+  if (assetsEl) assetsEl.textContent = String(ASSETS_COUNT || 0);
+  if (sectorsEl) sectorsEl.textContent = String(PRESENT_SECTORS?.size || 0);
+
+  // Sync labels for sliders
+  const dur = document.getElementById("simDuration");
+  const durVal = document.getElementById("simDurationVal");
+  const tick = document.getElementById("simTick");
+  const tickVal = document.getElementById("simTickVal");
+
+  if (dur && durVal) durVal.textContent = String(dur.value);
+  if (tick && tickVal) tickVal.textContent = String(tick.value);
+
+  overlay.classList.remove("is-hidden");
+  canvas.classList.add("map-disabled");
+}
+
+function closeSimConfigModal() {
+  const overlay = document.getElementById("simOverlay");
+  const canvas = document.querySelector(".canvas");
+  if (overlay) overlay.classList.add("is-hidden");
+  if (canvas) canvas.classList.remove("map-disabled");
+}
+
+function wireSimConfigModal() {
+  const overlay = document.getElementById("simOverlay");
+  if (!overlay) return;
+
+  const dur = document.getElementById("simDuration");
+  const durVal = document.getElementById("simDurationVal");
+  const tick = document.getElementById("simTick");
+  const tickVal = document.getElementById("simTickVal");
+
+  if (dur && durVal) dur.addEventListener("input", () => (durVal.textContent = String(dur.value)));
+  if (tick && tickVal) tick.addEventListener("input", () => (tickVal.textContent = String(tick.value)));
+
+  const cancel = document.getElementById("simCancel");
+  if (cancel) cancel.addEventListener("click", closeSimConfigModal);
+
+  const confirm = document.getElementById("simConfirm");
+  if (confirm) {
+    confirm.addEventListener("click", async () => {
+      const scenario = document.getElementById("simScenario")?.value || "earthquake";
+      const durationHours = Number(document.getElementById("simDuration")?.value || 72);
+      const tickMinutes = Number(document.getElementById("simTick")?.value || 10);
+      const crews = Number(document.getElementById("simCrews")?.value || 10);
+
+      // Save config locally (optional but useful)
+      const simcfg = {
+        city: CURRENT_CITY,
+        scenario,
+        duration_hours: durationHours,
+        tick_minutes: tickMinutes,
+        repair_crews: crews,
+      };
+      localStorage.setItem("ginom.simcfg", JSON.stringify(simcfg));
+
+      closeSimConfigModal();
+
+      // Trigger run through backend execute (keeps your architecture)
+      try {
+        const res = await apiExecute([{ type: "SIM_RUN", payload: simcfg }], { simcfg });
+        if (res?.artifacts) applyArtifacts(res.artifacts);
+      } catch (e) {
+        console.error("SIM_RUN failed:", e);
+      }
+    });
+  }
+}
+
+
 /* =========================
    Boot
    ========================= */
@@ -822,6 +1158,8 @@ document.addEventListener("DOMContentLoaded", () => {
   MAP = initMapIfPresent();
   initDecisionSupportChartsIfPresent();
   initChat();
+  wireSimConfigModal();
+
   syncSectorBarsToConstants();
 
   // Initial state: no simulation and no assets => overlays hidden

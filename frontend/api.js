@@ -1,10 +1,8 @@
 /**
  * api.js
- * - Single source of truth for calling the backend.
- * - Works even if backend is down (fallback responses).
- * - English-only.
+ * Single source of truth for calling the backend.
+ * - If backend is down: returns a safe fallback reply (no DB writes).
  */
-
 
 export const DEMO_BACKEND_BASE =
   (window.DEMO_BACKEND_BASE && String(window.DEMO_BACKEND_BASE)) ||
@@ -18,78 +16,78 @@ async function postJson(url, payload) {
   });
 
   if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    throw new Error(`HTTP ${res.status}: ${txt}`);
+    const text = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status} from ${url}. ${text}`);
   }
+
   return res.json();
 }
 
 /**
- * Chat API
- * Expected backend response shape:
+ * Chat endpoint
+ * Backend should return:
  * {
  *   assistant_message: string,
  *   requires_confirmation: boolean,
- *   actions: Array<{type: string, payload: object}>
+ *   actions: Array<{type:string, payload?:any}>
  * }
  */
-export async function apiChat(session_id, message, context = {}) {
+export async function apiChat(sessionId, message, context = {}) {
   const url = `${DEMO_BACKEND_BASE}/api/chat`;
-  const payload = { session_id, message, context };
-  return await postJson(url, payload);
+  return postJson(url, {
+    session_id: sessionId,
+    message,
+    context,
+  });
 }
 
 /**
- * Execute API (optional backend endpoint).
- * For now the demo can run without it. If backend is missing, you can simulate.
+ * Execute endpoint
+ * Backend should return:
+ * {
+ *   artifacts: Array<{type:string, data:any}>
+ * }
  */
-export async function apiExecute(session_id, actions = [], context = {}) {
+export async function apiExecute(sessionId, actions = [], context = {}) {
   const url = `${DEMO_BACKEND_BASE}/api/execute`;
-  const payload = { session_id, actions, context };
-  return await postJson(url, payload);
+  return postJson(url, {
+    session_id: sessionId,
+    actions,
+    context,
+  });
 }
 
-/** Local fallback when backend is not running. */
-export function localFallbackReply(message) {
-  const m = (message || "").toLowerCase();
+/**
+ * Used when backend is down/unreachable.
+ * IMPORTANT: no seeding here because you explicitly want DB seeding in backend.
+ */
+export function localFallbackReply(message = "") {
+  const m = String(message).trim().toLowerCase();
 
-  if (m.includes("config") || m.includes("parameters") || m.includes("simulation config")) {
+  // Minimal helpful guidance while backend is offline
+  if (!m) {
     return {
-      assistant_message: "Opening Simulation Configuration screen.",
+      assistant_message: "Please type a command (e.g., 'show assets') or a city name.",
       requires_confirmation: false,
-      actions: [{ type: "NAVIGATE", payload: { url: "./simconf.html" } }],
+      actions: [],
     };
   }
 
-  if ((m.includes("run") || m.includes("start")) && m.includes("simulation")) {
+  // If user typed a city name but backend is down — we cannot resolve boundaries or seed DB
+  if (/^[a-z\s.'-]{2,}$/.test(m) && !m.includes("show") && !m.includes("run")) {
     return {
       assistant_message:
-        "I can prepare the simulation run. Approve to proceed (demo safety).",
-      requires_confirmation: true,
-      actions: [
-        {
-          type: "SIM_RUN",
-          payload: { scenario: "Earthquake", location: "Tel Aviv", magnitude: 6.4 },
-        },
-      ],
-    };
-  }
-
-  if (m.includes("show") && (m.includes("assets") || m.includes("map"))) {
-    return {
-      assistant_message:
-        "I can load demo assets on the map. Approve to proceed.",
-      requires_confirmation: true,
-      actions: [
-        { type: "MAP_SET_VIEW", payload: { lat: 32.0853, lng: 34.7818, zoom: 11 } },
-        { type: "MAP_SHOW_ASSETS", payload: { city: "Tel Aviv", sectors: ["electricity","water","gas","communication","first_responders"] } }
-      ],
+        `I understood you may be referring to the city "${message}". ` +
+        `However, the backend is currently unavailable, so I cannot resolve the city's boundary or seed the database. ` +
+        `Please start the backend and try again.`,
+      requires_confirmation: false,
+      actions: [],
     };
   }
 
   return {
     assistant_message:
-      "Acknowledged. You can ask me to show assets on the map, open Simulation Configuration, or run a scenario.",
+      "Backend is unavailable. Start it and try again. (Expected endpoints: POST /api/chat and POST /api/execute)",
     requires_confirmation: false,
     actions: [],
   };

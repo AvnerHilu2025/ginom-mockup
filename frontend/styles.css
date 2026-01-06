@@ -1226,3 +1226,126 @@ html, body {
 #healthOverlay.is-visible {
   display: block;
 }
+
+/* =========================
+   Simulation Config Modal
+   ========================= */
+.sim-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.sim-overlay.is-hidden {
+  display: none;
+}
+
+.sim-modal {
+  width: min(980px, calc(100% - 56px));
+  background: #f7f8fb;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(2, 6, 23, 0.25);
+  padding: 22px;
+}
+
+.sim-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.sim-modal__title {
+  font-size: 26px;
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.sim-modal__subtitle {
+  font-size: 13px;
+  color: #475569;
+  margin-top: 2px;
+}
+
+.sim-pills {
+  display: flex;
+  gap: 10px;
+}
+
+.sim-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: #eef2ff;
+  border: 1px solid rgba(30, 66, 172, 0.18);
+  color: #0f172a;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sim-pill b {
+  font-size: 14px;
+}
+
+.sim-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  padding-top: 10px;
+}
+
+.sim-field { display: flex; flex-direction: column; gap: 8px; }
+.sim-field--wide { grid-column: 1 / -1; }
+
+.sim-label { font-size: 12px; font-weight: 800; color: #334155; }
+
+.sim-input {
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  background: #ffffff;
+  padding: 0 12px;
+  font-weight: 700;
+  outline: none;
+}
+
+.sim-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.sim-btn {
+  height: 44px;
+  border-radius: 12px;
+  padding: 0 16px;
+  font-weight: 900;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.sim-btn--ghost {
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.14);
+  color: #0f172a;
+}
+
+.sim-btn--primary {
+  background: #1e42ac;
+  color: #ffffff;
+}
+
+/* When modal is open - disable map interactions */
+.canvas.map-disabled #map {
+  pointer-events: none;
+  filter: grayscale(0.1) contrast(0.95);
+}

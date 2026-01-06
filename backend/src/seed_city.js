@@ -36,6 +36,15 @@ function pick(rng, arr) {
   return arr[Math.floor(rng() * arr.length)];
 }
 
+function shuffleInPlace(rng, arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+
 /**
  * Introspect SQLite schema.
  */
@@ -368,6 +377,18 @@ export async function seedCity(
     }
     insertedDeps++;
   }
+  for (const sector of Object.keys(idsBySector)) {
+    const ids = [...(idsBySector[sector] || [])];
+    if (ids.length < 2) continue;
+
+    shuffleInPlace(rng, ids);
+
+    for (let i = 0; i < ids.length; i++) {
+      const a = ids[i];
+      const b = ids[(i + 1) % ids.length];
+      await addDep(a, b, "sector_link", 1);
+    }
+  }
 
   async function addPowerDeps(consumerId) {
     if (!electricityIds.length) return;
@@ -395,6 +416,52 @@ export async function seedCity(
       await addCommDep(id);
     }
   }
+   const degree = new Map();
+  for (const sector of Object.keys(idsBySector)) {
+    for (const id of idsBySector[sector] || []) degree.set(id, 0);
+  }
+
+  // Count degrees from DB (authoritative)
+  const depRows = await all(
+    db,
+    `
+    SELECT provider_asset_id AS asset_id FROM asset_dependencies
+    UNION ALL
+    SELECT consumer_asset_id AS asset_id FROM asset_dependencies
+    `,
+    []
+  );
+
+  for (const r of depRows) {
+    const aid = r?.asset_id;
+    if (!aid) continue;
+    if (degree.has(aid)) degree.set(aid, (degree.get(aid) || 0) + 1);
+  }
+
+  // Fix isolated assets
+  const electricityIds2 = idsBySector.electricity || [];
+  for (const sector of Object.keys(idsBySector)) {
+    const ids = idsBySector[sector] || [];
+    for (const id of ids) {
+      if ((degree.get(id) || 0) > 0) continue;
+
+      // Prefer same-sector partner if available
+      if (ids.length > 1) {
+        const partner = pick(rng, ids.filter((x) => x !== id));
+        await addDep(id, partner, "sector_link", 1);
+        degree.set(id, 1);
+        continue;
+      }
+
+      // Fallback: connect to electricity (power)
+      if (electricityIds2.length) {
+        const provider = pick(rng, electricityIds2);
+        await addDep(provider, id, "power", 1);
+        degree.set(id, 1);
+      }
+    }
+  }
+
 
   return {
     seed_run_id,

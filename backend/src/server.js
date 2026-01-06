@@ -291,7 +291,7 @@ app.post("/api/chat", async (req, res) => {
             `Would you like me to generate synthetic assets for ${city} and load them on the map?`,
           requires_confirmation: true,
           actions: [
-            { type: "MAP_SET_VIEW", payload: view },
+            { type: "MAP_SET_VIEW", payload: { ...view, city } },
             {
               type: "SEED_CITY",
               payload: {
@@ -313,7 +313,7 @@ app.post("/api/chat", async (req, res) => {
         assistant_message: `I focused the map on ${city}. Found ${c} assets. Display them?`,
         requires_confirmation: true,
         actions: [
-          { type: "MAP_SET_VIEW", payload: view },
+          { type: "MAP_SET_VIEW", payload: { ...view, city } },
           { type: "MAP_SHOW_ASSETS", payload: { city, sectors: ALL_SECTORS } },
         ],
         questions: [],
@@ -352,7 +352,7 @@ app.post("/api/chat", async (req, res) => {
             : `Displaying ${sectors.join(", ")} assets in ${city}.`,
         requires_confirmation: true,
         actions: [
-          { type: "MAP_SET_VIEW", payload: view },
+          { type: "MAP_SET_VIEW", payload: { ...view, city } },
           { type: "MAP_SHOW_ASSETS", payload: { city, sectors } },
         ],
         questions: [],
@@ -370,7 +370,7 @@ app.post("/api/chat", async (req, res) => {
         assistant_message: `Starting simulation for ${city}.`,
         requires_confirmation: true,
         actions: [
-          { type: "MAP_SET_VIEW", payload: view },
+          { type: "MAP_SET_VIEW", payload: { ...view, city }},
           { type: "SIM_RUN", payload: { city, scenario: "earthquake" } },
         ],
         questions: [],
@@ -456,7 +456,7 @@ app.post("/api/chat", async (req, res) => {
       const sectors = parseSectorsFromText(text);
       parsed.requires_confirmation = true;
       parsed.actions = [
-        { type: "MAP_SET_VIEW", payload: view },
+        { type: "MAP_SET_VIEW", payload: { ...view, city } },
         { type: "MAP_SHOW_ASSETS", payload: { city, sectors: ALL_SECTORS } },
 
       ];
@@ -468,6 +468,41 @@ app.post("/api/chat", async (req, res) => {
     res.status(500).json({ error: "chat_failed", details: e.message });
   }
 });
+
+app.get("/api/dependencies", async (req, res) => {
+  try {
+    const city = String(req.query.city || "").trim();
+    if (!city) return res.status(400).json({ error: "city is required" });
+
+    const rows = await all(
+      db,
+      `
+      SELECT
+        d.provider_asset_id,
+        d.consumer_asset_id,
+        d.dependency_type,
+        d.priority,
+        ap.sector AS provider_sector,
+        ac.sector AS consumer_sector,
+        ap.lat AS provider_lat,
+        ap.lng AS provider_lng,
+        ac.lat AS consumer_lat,
+        ac.lng AS consumer_lng
+      FROM asset_dependencies d
+      JOIN assets ap ON ap.id = d.provider_asset_id
+      JOIN assets ac ON ac.id = d.consumer_asset_id
+      WHERE ap.city = ? AND ac.city = ?
+      `,
+      [city, city]
+    );
+
+    res.json({ city, dependencies: rows });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: "failed to load dependencies" });
+  }
+});
+
 
 /**
  * POST /api/execute

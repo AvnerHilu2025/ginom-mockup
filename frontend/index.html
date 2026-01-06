@@ -160,6 +160,62 @@
         <!-- CENTER: MAP + OVERLAYS -->
         <section class="canvas">
           <div id="map" class="map"></div>
+          <!-- SIM CONFIG MODAL (hidden by default) -->
+          <div id="simOverlay" class="sim-overlay is-hidden" role="dialog" aria-modal="true" aria-label="Configure Simulation">
+            <div class="sim-modal">
+              <div class="sim-modal__header">
+                <div>
+                  <div class="sim-modal__title">Configure Simulation</div>
+                  <div class="sim-modal__subtitle">Choose scenario and runtime parameters</div>
+                </div>
+
+                <div class="sim-pills">
+                  <div class="sim-pill"><span>Sectors</span> <b id="simSectorsCount">0</b></div>
+                  <div class="sim-pill"><span>Assets</span> <b id="simAssetsCount">0</b></div>
+                </div>
+              </div>
+
+              <div class="sim-grid">
+                <label class="sim-field">
+                  <span class="sim-label">Area (city)</span>
+                  <input id="simCity" class="sim-input" type="text" readonly />
+                </label>
+
+                <label class="sim-field">
+                  <span class="sim-label">Scenario</span>
+                  <select id="simScenario" class="sim-input">
+                    <option value="earthquake">Earthquake</option>
+                    <option value="cyber_attack">Cyber Attack</option>
+                    <option value="tsunami">Tsunami</option>
+                    <option value="pandemic">Pandemic</option>
+                    <option value="severe_storm">Severe Storm</option>
+                    <option value="wildfire">Wildfire</option>
+                  </select>
+                </label>
+
+                <label class="sim-field sim-field--wide">
+                  <span class="sim-label">Duration (hours): <b id="simDurationVal">72</b></span>
+                  <input id="simDuration" type="range" min="1" max="168" value="72" />
+                </label>
+
+                <label class="sim-field sim-field--wide">
+                  <span class="sim-label">Tick (minutes): <b id="simTickVal">10</b></span>
+                  <input id="simTick" type="range" min="1" max="30" value="10" />
+                </label>
+
+                <label class="sim-field">
+                  <span class="sim-label">Repair crews</span>
+                  <input id="simCrews" class="sim-input" type="number" min="0" step="1" value="10" />
+                </label>
+              </div>
+
+              <div class="sim-actions">
+                <button id="simCancel" class="sim-btn sim-btn--ghost" type="button">Cancel</button>
+                <button id="simConfirm" class="sim-btn sim-btn--primary" type="button">Confirm & Run</button>
+              </div>
+            </div>
+          </div>
+
 
           <!-- Active Scenario Card -->
           <div id="activeScenarioCard" class="overlay overlay--scenario card">
@@ -330,7 +386,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
     <!-- App JS -->
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="app.js"></script>
 
   </body>
 </html>

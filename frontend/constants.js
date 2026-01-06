@@ -1,43 +1,16 @@
-// frontend/constants.js
+// constants.js
 
 export const SECTORS = {
-  electricity: {
-    label: "Electricity",
-    color: "#1E42AC" // blue
-  },
-  water: {
-    label: "Water",
-    color: "#0EA5E9" // light blue
-  },
-  gas: {
-    label: "Gas",
-    color: "#F97316" // amber
-  },
-  communication: {
-    label: "Communication",
-    color: "#8B5CF6" // purple
-  },
-  first_responders: {
-    label: "First Responders",
-    color: "#DC2626" // red
-  }
+  electricity: { label: "Electricity", color: "#1E42AC" },
+  water: { label: "Water", color: "#0EA5E9" },
+  gas: { label: "Gas", color: "#F97316" },
+  communication: { label: "Communication", color: "#8B5CF6" },
+  first_responders: { label: "First Responders", color: "#111827" },
 };
 
 export const ASSET_STATUS = {
-  ok: {
-    label: "Operational",
-    color: "#16A34A" // green
-  },
-  degraded: {
-    label: "Degraded",
-    color: "#F97316" // orange
-  },
-  failed: {
-    label: "Failed",
-    color: "#DC2626" // red
-  },
-  recovered: {
-    label: "Recovered",
-    color: "#22C55E" // green bright
-  }
+  active: { label: "Active", color: "#16A34A" },
+  degraded: { label: "Degraded", color: "#F97316" },
+  failed: { label: "Failed", color: "#DC2626" },
+  recovered: { label: "Recovered", color: "#22C55E" },
 };
