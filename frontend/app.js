@@ -32,6 +32,47 @@ const BACKEND_BASE =
 let __depsBgClickBound = false;
 let __lastAssetLayerClickAt = 0;
 
+function formatSimConfigSummary(simcfg) {
+  const city = simcfg.city || "—";
+  const scenario = simcfg.scenario || "—";
+  const duration = Number(simcfg.duration_hours || 0);
+  const tick = Number(simcfg.tick_minutes || 0);
+  const crews = Number(simcfg.repair_crews ?? 0);
+
+  return [
+    `**Simulation settings**`,
+    `- **Area (city):** ${city}`,
+    `- **Scenario:** ${scenario}`,
+    `- **Duration:** ${duration} hours`,
+    `- **Tick:** ${tick} minutes`,
+    `- **Repair crews:** ${crews}`,
+  ].join("\n");
+}
+function renderSimRunConfirmation(simcfg, onConfirm, onCancel) {
+  // Show summary
+  appendBubble({ role: "bot", text: formatSimConfigSummary(simcfg) });
+
+  // Ask for confirmation with buttons
+  const elWrap = appendBubble({
+    role: "bot",
+    text: "Please confirm: run this simulation now?",
+    extraHTML: `
+      <div class="quick-actions" style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="quick-btn" data-sim-confirm="1">Run simulation</button>
+        <button class="quick-btn" data-sim-cancel="1">Cancel</button>
+      </div>
+    `,
+  });
+
+  // Wire buttons (scoped to this bubble)
+  const confirmBtn = elWrap?.querySelector?.('[data-sim-confirm="1"]');
+  const cancelBtn = elWrap?.querySelector?.('[data-sim-cancel="1"]');
+
+  confirmBtn?.addEventListener("click", () => onConfirm?.());
+  cancelBtn?.addEventListener("click", () => onCancel?.());
+}
+
+
 function ensureDependencyLayers(map) {
   if (!map) return;
 
@@ -519,38 +560,63 @@ function ensureAssetsLayer(map) {
   map.on("mouseleave", "ginom-assets-circle", () => (map.getCanvas().style.cursor = ""));
 
   // Popup on click
-  map.on("click", "ginom-assets-circle", (e) => {
-    const f = e.features?.[0];
-    if (!f) return;
+// --- Asset tooltip on hover (instead of click) ---
+let __assetHoverPopup = null;
 
-    const p = f.properties || {};
-    const name = p.name || p.id || "Asset";
-    const sectorKey = p.sector || "unknown";
-    const sectorLabel = SECTORS[sectorKey]?.label || sectorKey;
-    const subtype = p.subtype || "";
-    const criticality = p.criticality ?? "";
-
-    const html = `
-      <div style="font-family: Geist, Arial; min-width: 220px;">
-        <div style="font-weight:800; margin-bottom:6px;">${escapeHtml(name)}</div>
-        <div style="font-size:12px; line-height:1.35;">
-          <div><b>Sector:</b> ${escapeHtml(sectorLabel)}</div>
-          <div><b>Type:</b> ${escapeHtml(subtype)}</div>
-          <div><b>Criticality:</b> ${escapeHtml(criticality)}</div>
-        </div>
-      </div>
-    `;
-
-    new mapboxgl.Popup({ closeButton: true, closeOnClick: true })
-      .setLngLat(e.lngLat)
-      .setHTML(html)
-      .addTo(map);
-            // === GINOM DEPENDENCIES (BEGIN) ===
-      __lastAssetLayerClickAt = Date.now();
-      showDependencyChain(String(p.id || ""), { direction: "upstream", maxDepth: 4, fitBounds: false });
-      // === GINOM DEPENDENCIES (END) ===
-
+function ensureAssetHoverPopup() {
+  if (__assetHoverPopup) return __assetHoverPopup;
+  __assetHoverPopup = new mapboxgl.Popup({
+    closeButton: false,
+    closeOnClick: false,
+    offset: 12,
   });
+  return __assetHoverPopup;
+}
+
+map.on("mousemove", "ginom-assets-circle", (e) => {
+  const f = e.features?.[0];
+  if (!f) return;
+
+  const p = f.properties || {};
+  const name = p.name || p.id || "Asset";
+  const sectorKey = p.sector || "unknown";
+  const sectorLabel = SECTORS[sectorKey]?.label || sectorKey;
+  const subtype = p.subtype || "";
+  const criticality = p.criticality ?? "";
+
+  const html = `
+    <div style="font-family: Geist, Arial; min-width: 220px;">
+      <div style="font-weight:800; margin-bottom:6px;">${escapeHtml(name)}</div>
+      <div style="font-size:12px; line-height:1.35;">
+        <div><b>Sector:</b> ${escapeHtml(sectorLabel)}</div>
+        <div><b>Type:</b> ${escapeHtml(subtype)}</div>
+        <div><b>Criticality:</b> ${escapeHtml(criticality)}</div>
+      </div>
+    </div>
+  `;
+
+  const popup = ensureAssetHoverPopup();
+  popup.setLngLat(e.lngLat).setHTML(html).addTo(map);
+
+  // cursor feedback
+  map.getCanvas().style.cursor = "pointer";
+});
+
+map.on("mouseleave", "ginom-assets-circle", () => {
+  if (__assetHoverPopup) __assetHoverPopup.remove();
+  map.getCanvas().style.cursor = "";
+});
+
+// Keep click for dependencies only (no popup)
+map.on("click", "ginom-assets-circle", (e) => {
+  const f = e.features?.[0];
+  if (!f) return;
+
+  const p = f.properties || {};
+  __lastAssetLayerClickAt = Date.now();
+  showDependencyChain(String(p.id || ""), { direction: "upstream", maxDepth: 4, fitBounds: false });
+});
+
     // === GINOM DEPENDENCIES (BEGIN): clear chain on empty map click ===
   if (!__depsBgClickBound) {
     __depsBgClickBound = true;
@@ -1120,31 +1186,48 @@ function wireSimConfigModal() {
   const confirm = document.getElementById("simConfirm");
   if (confirm) {
     confirm.addEventListener("click", async () => {
-      const scenario = document.getElementById("simScenario")?.value || "earthquake";
-      const durationHours = Number(document.getElementById("simDuration")?.value || 72);
-      const tickMinutes = Number(document.getElementById("simTick")?.value || 10);
-      const crews = Number(document.getElementById("simCrews")?.value || 10);
+    const scenario = document.getElementById("simScenario")?.value || "earthquake";
+    const durationHours = Number(document.getElementById("simDuration")?.value || 72);
+    const tickMinutes = Number(document.getElementById("simTick")?.value || 10);
+    const crews = Number(document.getElementById("simCrews")?.value || 10);
 
-      // Save config locally (optional but useful)
-      const simcfg = {
-        city: CURRENT_CITY,
-        scenario,
-        duration_hours: durationHours,
-        tick_minutes: tickMinutes,
-        repair_crews: crews,
-      };
-      localStorage.setItem("ginom.simcfg", JSON.stringify(simcfg));
+    const simcfg = {
+      city: localStorage.getItem("ginom.currentCity") || CURRENT_CITY || "",
+      scenario,
+      duration_hours: durationHours,
+      tick_minutes: tickMinutes,
+      repair_crews: crews,
+    };
 
-      closeSimConfigModal();
+    // Persist for later use
+    localStorage.setItem("ginom.simcfg", JSON.stringify(simcfg));
 
-      // Trigger run through backend execute (keeps your architecture)
-      try {
-        const res = await apiExecute([{ type: "SIM_RUN", payload: simcfg }], { simcfg });
-        if (res?.artifacts) applyArtifacts(res.artifacts);
-      } catch (e) {
-        console.error("SIM_RUN failed:", e);
+    // Close modal + disable map stays off? Your call.
+    closeSimConfigModal();
+
+    // NEW: Ask for confirmation in chat (do NOT run yet)
+    renderSimRunConfirmation(
+      simcfg,
+      async () => {
+        // Confirmed: execute SIM_RUN
+        try {
+          const exec = await apiExecute("demo-1", [{ type: "SIM_RUN", payload: simcfg }], {
+            page: window.location.pathname.split("/").pop(),
+            simcfg,
+          });
+          applyExecuteArtifacts(exec);
+          appendBubble({ role: "bot", text: "Simulation started." });
+        } catch (e) {
+          console.error("SIM_RUN failed:", e);
+          appendBubble({ role: "bot", text: "Failed to start simulation (demo mode)." });
+        }
+      },
+      () => {
+        appendBubble({ role: "bot", text: "Cancelled. Simulation was not started." });
       }
-    });
+    );
+  });
+
   }
 }
 
