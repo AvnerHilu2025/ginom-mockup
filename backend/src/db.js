@@ -45,3 +45,38 @@ export async function initSchema(db, schemaPath) {
     await run(db, st);
   }
 }
+// =========================
+// Structural Dependencies Graph
+// =========================
+export async function getDependenciesGraph(db) {
+  // Nodes: all assets
+  const nodes = await all(
+    db,
+    `
+    SELECT
+      id,
+      name,
+      sector,
+      subtype,
+      criticality,
+      is_synthetic
+    FROM assets
+    `
+  );
+
+  // Links: active dependencies only
+  const links = await all(
+    db,
+    `
+    SELECT
+      provider_asset_id AS source,
+      consumer_asset_id AS target,
+      dependency_type AS type,
+      priority AS weight
+    FROM asset_dependencies
+    WHERE is_active = 1
+    `
+  );
+
+  return { nodes, links };
+}

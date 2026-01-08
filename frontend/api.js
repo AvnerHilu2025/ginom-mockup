@@ -92,3 +92,15 @@ export function localFallbackReply(message = "") {
     actions: [],
   };
 }
+
+// =========================
+// Dependencies Graph API
+// =========================
+export async function fetchDependenciesGraph() {
+  //const res = await fetch("/api/dependencies/graph");
+  const res = await fetch(`${DEMO_BACKEND_BASE}/api/dependencies/graph`);
+  if (!res.ok) {
+    throw new Error("Failed to load dependencies graph");
+  }
+  return res.json();
+}

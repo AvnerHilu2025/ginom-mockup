@@ -1349,3 +1349,237 @@ html, body {
   pointer-events: none;
   filter: grayscale(0.1) contrast(0.95);
 }
+
+/* =========================
+   Dependencies Overlay
+   ========================= */
+.deps-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  background: rgba(15, 23, 42, 0.55);
+  backdrop-filter: blur(2px);
+}
+
+.deps-overlay.is-hidden {
+  display: none;
+}
+
+.deps-modal {
+  width: min(1100px, calc(100% - 64px));
+  height: min(700px, calc(100% - 64px));
+  background: #f7f8fb;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 18px;
+  box-shadow: 0 30px 80px rgba(2, 6, 23, 0.25);
+  display: flex;
+  flex-direction: column;
+}
+
+.deps-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border-200);
+}
+
+.deps-modal__title {
+  font-size: 18px;
+  font-weight: 900;
+  color: var(--brand-900);
+}
+
+.deps-modal__body {
+  flex: 1;
+  padding: 14px;
+  display: flex;
+}
+
+.deps-graph-placeholder {
+  flex: 1;
+  border-radius: 14px;
+  border: 2px dashed rgba(30, 66, 172, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-600);
+  font-weight: 800;
+  font-size: 14px;
+}
+
+/* 3D graph canvas */
+#depsGraphMount canvas {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 12px;
+}
+
+
+/* Make the dependencies modal body give the graph a real canvas area */
+#dependenciesOverlay .deps-modal {
+  width: min(1400px, 96vw);
+  height: min(900px, 92vh);
+}
+
+#dependenciesOverlay .deps-modal__body {
+  height: calc(100% - 56px); /* header ~56px */
+}
+
+#depsGraphMount {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+/* ===== Dependencies: split layout (side panel + graph) ===== */
+.deps-layout{
+  display:flex;
+  gap:12px;
+  width:100%;
+  height:100%;
+  min-height:0;
+}
+
+.deps-side{
+  width: 360px;
+  max-width: 42%;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 14px;
+  padding: 12px;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+}
+
+.deps-side__header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+
+.deps-side__title{
+  font-weight:600;
+  color:#0f172a;
+}
+
+.deps-selected-meta{
+  padding:10px;
+  border-radius:12px;
+  background:#f7f8fb;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  margin-bottom:10px;
+}
+
+.deps-selected-meta__name{
+  font-weight:700;
+  color:#0f172a;
+  margin-bottom:4px;
+}
+
+.deps-selected-meta__sub{
+  font-size:12px;
+  color:#64748b;
+}
+
+.deps-cols{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap:10px;
+  min-height:0;
+  overflow:hidden;
+  flex:1;
+}
+
+.deps-col{
+  min-height:0;
+  display:flex;
+  flex-direction:column;
+}
+
+.deps-col__title{
+  font-size:12px;
+  font-weight:700;
+  color:#334155;
+  margin: 4px 0 8px;
+}
+
+.deps-list{
+  list-style:none;
+  padding:0;
+  margin:0;
+  overflow:auto;
+  min-height:0;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+  padding-top:8px;
+}
+
+.deps-list li{
+  padding:6px 6px;
+  border-radius:10px;
+  cursor:default;
+  font-size:13px;
+  color:#0f172a;
+}
+
+.deps-list li:hover{
+  background:#f1f5f9;
+}
+
+.deps-graph-wrap{
+  flex:1;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  background:#ffffff;
+  overflow:hidden;
+}
+
+.deps-graph-mount{
+  width:100%;
+  height:100%;
+}
+.deps-depth {
+  margin-top: 10px;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.deps-depth__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.deps-depth__label {
+  font-size: 12px;
+  color: #475569;
+  font-weight: 600;
+}
+
+.deps-depth__val {
+  font-size: 12px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.deps-depth__slider {
+  width: 100%;
+}
+
+.deps-depth__hint {
+  margin-top: 6px;
+  font-size: 11px;
+  color: #64748b;
+}

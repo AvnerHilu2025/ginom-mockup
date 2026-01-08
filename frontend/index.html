@@ -215,6 +215,61 @@
               </div>
             </div>
           </div>
+                      <!-- DEPENDENCIES OVERLAY -->
+          <div id="dependenciesOverlay" class="deps-overlay is-hidden" role="dialog" aria-modal="true" aria-label="Infrastructure Dependencies">
+            
+            <div class="deps-modal">
+              <div class="deps-modal__header">
+                <div class="deps-modal__title">Infrastructure Dependencies</div>
+                <button
+                  id="depsCloseBtn"
+                  class="icon-btn"
+                  type="button"
+                  aria-label="Close dependencies view"
+                >
+                  <i data-lucide="x"></i>
+                </button>
+              </div>
+
+              <div class="deps-modal__body">
+                <div class="deps-layout">
+                  <!-- LEFT PANEL -->
+                  <aside class="deps-side">
+                    <div class="deps-side__header">
+                      <div class="deps-side__title">Selected Asset</div>
+                      <button id="depsResetViewBtn" class="sim-btn sim-btn--ghost" type="button">
+                        Back to full graph
+                      </button>
+                    </div>
+
+                    <div id="depsSelectedMeta" class="deps-selected-meta">
+                      <div class="deps-selected-meta__name">—</div>
+                      <div class="deps-selected-meta__sub">Double-click a node to focus</div>
+                    </div>
+
+
+                    <div class="deps-cols">
+                      <div class="deps-col">
+                        <div class="deps-col__title">Upstream (Depends on)</div>
+                        <ul id="depsListUpstream" class="deps-list"></ul>
+                      </div>
+
+                      <div class="deps-col">
+                        <div class="deps-col__title">Downstream (Supplies)</div>
+                        <ul id="depsListDownstream" class="deps-list"></ul>
+                      </div>
+                    </div>
+                  </aside>
+
+                  <!-- GRAPH AREA -->
+                  <div class="deps-graph-wrap">
+                    <div id="depsGraphMount" class="deps-graph-mount"></div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
 
 
           <!-- Active Scenario Card -->
@@ -226,20 +281,21 @@
               </div>
             </div>
 
-            <div class="scenario-row">
-              <i data-lucide="map-pin"></i>
-              <span>Tel Aviv Metropolitan</span>
-            </div>
+              <div class="scenario-row">
+                <i data-lucide="map-pin"></i>
+                <span id="activeScenarioCity">—</span>
+              </div>
 
-            <div class="scenario-row">
-              <i data-lucide="clock"></i>
-              <span>14:23:45 Local Time</span>
-            </div>
+              <div class="scenario-row">
+                <i data-lucide="clock"></i>
+                <span id="activeScenarioTime">—</span>
+              </div>
 
-            <div class="scenario-row">
-              <i data-lucide="zap"></i>
-              <span>Earthquake M6.4</span>
-            </div>
+              <div class="scenario-row">
+                <i data-lucide="zap"></i>
+                <span id="activeScenarioType">—</span>
+              </div>
+
           </div>
 
           <!-- Sector Health -->
@@ -376,6 +432,7 @@
       </aside>
     </div>
 
+   
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
@@ -385,6 +442,8 @@
     <!-- Chart.js (optional; used by Decision Support screens) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
+    <!-- <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/npm/3d-force-graph/dist/3d-force-graph.min.js"></script>
     <!-- App JS -->
     <script type="module" src="app.js"></script>
 

@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 
-import { openDb, initSchema, all } from "./db.js";
+import { getDependenciesGraph, openDb, initSchema, all } from "./db.js";
 import { ollamaChat } from "./ollama.js";
 import { systemPrompt, userPrompt } from "./prompts.js";
 import { ragSearch } from "./rag.js";
@@ -630,6 +630,22 @@ app.post("/api/execute", async (req, res) => {
     res.status(500).json({ error: "execute_failed", details: e.message });
   }
 });
+
+// =========================
+// Dependencies Graph (Structural)
+// =========================
+app.get("/api/dependencies/graph", async (req, res) => {
+  try {
+    const graph = await getDependenciesGraph(db);
+    res.json(graph);
+  } catch (err) {
+    console.error("[api/dependencies/graph]", err);
+    res.status(500).json({
+      error: "Failed to load dependencies graph",
+    });
+  }
+});
+
 
 app.listen(PORT, () => {
   console.log(`GINOM backend running on http://localhost:${PORT}`);

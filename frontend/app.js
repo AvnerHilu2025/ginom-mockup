@@ -18,6 +18,8 @@ let SIM_RUNNING = false;
 let ASSETS_COUNT = 0; // source of truth for "are there assets on the map?"
 let PRESENT_SECTORS = new Set();
 let CURRENT_CITY = localStorage.getItem("ginom.currentCity") || "Jerusalem";
+let depsFocusDepth = 1; // 1..5
+window.MAP_VISIBLE_ASSETS = [];
 // Local asset cache (all assets ever loaded)
 let ALL_ASSETS = [];
 // What sectors are currently visible on the map
@@ -31,6 +33,73 @@ const BACKEND_BASE =
 
 let __depsBgClickBound = false;
 let __lastAssetLayerClickAt = 0;
+
+
+function syncImpactTimelineFromSimcfg(simcfg) {
+  const wrap = document.querySelector(".impact-timeline");
+  if (!wrap) return;
+
+  const range = wrap.querySelector(".timeline__range");
+  const labels = wrap.querySelectorAll(".timeline__t");
+  const startLabel = labels?.[0];
+  const endLabel = labels?.[1];
+
+  if (!range || !startLabel || !endLabel) return;
+
+  const durationHours = Math.max(0, Number(simcfg?.duration_hours ?? 0));
+  const tickMinutes = Math.max(1, Number(simcfg?.tick_minutes ?? 10));
+
+  // slider represents "ticks" (discrete steps)
+  const totalTicks = Math.max(1, Math.round((durationHours * 60) / tickMinutes));
+
+  range.min = "0";
+  range.max = String(totalTicks);
+  range.step = "1";
+
+  // IMPORTANT: start at the beginning
+  range.value = "0";
+
+  startLabel.textContent = "T+0:00";
+  endLabel.textContent = `T+${durationHours}:00`;
+}
+
+
+function loadSimcfgFromStorage() {
+  try {
+    const raw = localStorage.getItem("ginom.simcfg");
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function prettyScenarioName(s) {
+  const key = String(s || "").toLowerCase();
+  const map = {
+    earthquake: "Earthquake",
+    cyber_attack: "Cyber Attack",
+    flood: "Flood",
+    wildfire: "Wildfire",
+    storm: "Extreme Weather",
+  };
+  return map[key] || (key ? key.replace(/_/g, " ") : "—");
+}
+
+function updateActiveScenarioCard(simcfg) {
+  const cityEl = document.getElementById("activeScenarioCity");
+  const timeEl = document.getElementById("activeScenarioTime");
+  const typeEl = document.getElementById("activeScenarioType");
+
+  if (!cityEl || !timeEl || !typeEl) return;
+
+  const city = simcfg?.city ? String(simcfg.city) : "—";
+  const scenario = prettyScenarioName(simcfg?.scenario);
+
+  cityEl.textContent = city;
+  timeEl.textContent = `${new Date().toLocaleTimeString()} Local Time`;
+  typeEl.textContent = scenario;
+}
+
 
 function formatSimConfigSummary(simcfg) {
   const city = simcfg.city || "—";
@@ -669,6 +738,9 @@ function updateAssetsOnMap(rows = [], { fitBounds = true } = {}) {
 
     // Build GeoJSON and update map
     const geo = assetsToGeoJSON(rows);
+    // === SOURCE OF TRUTH: assets currently visible on the map ===
+    window.MAP_VISIBLE_ASSETS = Array.isArray(rows) ? rows : [];
+
     src.setData(geo);
 
     // Update sector visibility set based on CURRENT rows
@@ -749,6 +821,12 @@ function applyExecuteArtifacts(execResult) {
     if (a?.type === "sim_status") {
       const state = String(a?.data?.state || "").toLowerCase();
       SIM_RUNNING = state === "running" || state === "started" || state === "in_progress";
+      if (SIM_RUNNING) {
+        const simcfg = loadSimcfgFromStorage();
+        updateActiveScenarioCard(simcfg);
+        syncImpactTimelineFromSimcfg(simcfg);
+      }
+
       updateUiVisibility();
     }
   }
@@ -813,7 +891,7 @@ function initMapIfPresent() {
 
   const map = new mapboxgl.Map({
     container: "map",
-    style: "mapbox://styles/mapbox/streets-v12",
+    style: "mapbox://styles/mapbox/light-v11",
     center: [35.2137, 31.7683], // Jerusalem (default)
     zoom: 10.5,
     pitch: 0,
@@ -994,6 +1072,22 @@ function initChat() {
   async function handleSend() {
     if (inFlight) return;
     const message = (input.value || "").trim();
+    // =========================
+// Local command: dependencies
+// =========================
+    if (/^dependencies$/i.test(message)) {
+      input.value = "";
+      appendBubble({ role: "user", text: message });
+
+      appendBubble({
+        role: "bot",
+        text: "Opening infrastructure dependencies view.",
+      });
+
+      openDependenciesOverlay();
+      return;
+    }
+
     if (!message) return;
     if (/^(run simulation|simulate|start simulation)$/i.test(message)) {
       // clear input to keep UX consistent
@@ -1044,6 +1138,9 @@ function initChat() {
           });
 
           applyExecuteArtifacts(exec);
+          updateActiveScenarioCard(simcfg);
+          syncImpactTimelineFromSimcfg(simcfg);
+          
 
           appendBubble({ role: "bot", text: "Approved actions executed." });
           console.log("execute result:", exec);
@@ -1074,7 +1171,18 @@ function initChat() {
     const t = (btn.textContent || "").toLowerCase();
     if (t.includes("run simulation")) btn.addEventListener("click", () => openSimConfigModal?.());
     if (t.includes("upload")) btn.addEventListener("click", () => appendBubble({ role: "bot", text: "Upload flow is not implemented in this demo yet." }));
-    if (t.includes("dependencies")) btn.addEventListener("click", () => appendBubble({ role: "bot", text: "Dependencies view is not implemented in this demo yet." }));
+    //if (t.includes("dependencies")) btn.addEventListener("click", () => appendBubble({ role: "bot", text: "Dependencies view is not implemented in this demo yet." }));
+    if (t.includes("dependencies")) {
+      btn.addEventListener("click", () => {
+        appendBubble({ role: "user", text: "dependencies" });
+        appendBubble({
+          role: "bot",
+          text: "Opening infrastructure dependencies view.",
+        });
+        openDependenciesOverlay();
+      });
+    }
+
   });
 
   // Wire quick buttons inside assistant bubbles if present
@@ -1094,10 +1202,15 @@ function initChat() {
     }
     if (t.includes("dependencies")) {
       btn.addEventListener("click", () => {
-        input.value = "Show dependencies";
-        send.click();
+        appendBubble({ role: "user", text: "dependencies" });
+        appendBubble({
+          role: "bot",
+          text: "Opening infrastructure dependencies view.",
+        });
+        openDependenciesOverlay();
       });
     }
+
   });
 
   try {
@@ -1167,6 +1280,30 @@ function closeSimConfigModal() {
   if (overlay) overlay.classList.add("is-hidden");
   if (canvas) canvas.classList.remove("map-disabled");
 }
+// =========================
+// Dependencies Overlay
+// =========================
+function openDependenciesOverlay() {
+  const overlay = document.getElementById("dependenciesOverlay");
+  const canvas = document.querySelector(".canvas");
+  if (!overlay || !canvas) return;
+
+  overlay.classList.remove("is-hidden");
+  canvas.classList.add("map-disabled");
+
+  // render graph on open
+  renderDependenciesGraph().catch(err => {
+    console.error("[Dependencies Graph]", err);
+  });
+}
+
+function closeDependenciesOverlay() {
+  const overlay = document.getElementById("dependenciesOverlay");
+  const canvas = document.querySelector(".canvas");
+  if (overlay) overlay.classList.add("is-hidden");
+  if (canvas) canvas.classList.remove("map-disabled");
+  console.log (overlay);
+}
 
 function wireSimConfigModal() {
   const overlay = document.getElementById("simOverlay");
@@ -1216,6 +1353,9 @@ function wireSimConfigModal() {
             simcfg,
           });
           applyExecuteArtifacts(exec);
+          updateActiveScenarioCard(simcfg);
+          syncImpactTimelineFromSimcfg(simcfg);
+          
           appendBubble({ role: "bot", text: "Simulation started." });
         } catch (e) {
           console.error("SIM_RUN failed:", e);
@@ -1231,13 +1371,376 @@ function wireSimConfigModal() {
   }
 }
 
+// =========================
+// 3D Dependencies Graph
+// =========================
+let depsGraph = null;
+let depsFullData = null;
+let depsFocusedNodeId = null;
+
+// double-click detection
+let depsLastClickAt = 0;
+let depsLastClickNodeId = null;
+const DEPS_DBLCLICK_MS = 350;
+
+async function renderDependenciesGraph() {
+  const mountEl = document.getElementById("depsGraphMount");
+  if (!mountEl) return;
+
+  mountEl.innerHTML = "";
+  mountEl.style.position = "relative";
+  mountEl.style.overflow = "hidden";
+
+  const FG = window.ForceGraph3D;
+  if (typeof FG !== "function") {
+    console.error("[Dependencies Graph] ForceGraph3D not available.", {
+      THREE: typeof window.THREE,
+      ForceGraph3D: typeof window.ForceGraph3D,
+    });
+    mountEl.textContent = "3D graph library failed to load.";
+    return;
+  }
+
+  // Normalize link end (id or node object)
+  const linkEndId = (x) => (x && typeof x === "object" ? x.id : x);
+
+  try {
+    const { fetchDependenciesGraph } = await import("./api.js");
+    const rawData = await fetchDependenciesGraph();
+
+    const allNodes = Array.isArray(rawData?.nodes) ? rawData.nodes : [];
+    const allLinks = Array.isArray(rawData?.links) ? rawData.links : [];
+
+    // === SOURCE OF TRUTH: assets currently visible on the map ===
+    const visibleAssets = Array.isArray(window.MAP_VISIBLE_ASSETS)
+      ? window.MAP_VISIBLE_ASSETS
+      : [];
+
+    if (visibleAssets.length === 0) {
+      mountEl.textContent = "No assets are currently visible on the map.";
+      return;
+    }
+
+    const visibleIds = new Set(visibleAssets.map((a) => a.id));
+
+    // Nodes: only assets currently shown on the map
+    const nodes = allNodes.filter((n) => visibleIds.has(n.id));
+
+    // Links: only dependencies fully inside the visible asset set
+    const links = allLinks.filter((l) => {
+      const s = linkEndId(l.source);
+      const t = linkEndId(l.target);
+      return visibleIds.has(s) && visibleIds.has(t);
+    });
+
+    if (nodes.length === 0) {
+      mountEl.textContent = "No dependencies for the currently visible assets.";
+      return;
+    }
+
+    const data = { nodes, links };
+    depsFullData = data;
+    depsFocusedNodeId = null;
+
+    depsGraph = FG()(mountEl)
+      .graphData(data)
+      .nodeId("id")
+      .nodeLabel((node) => `${node.name}\n(${node.sector})`)
+      .nodeAutoColorBy("sector")
+      .nodeRelSize(6)
+      .linkDirectionalArrowLength(6)
+      .linkDirectionalArrowRelPos(1)
+      .linkWidth((link) => Math.max(1, link.weight || 1))
+      .backgroundColor("#f7f8fb");
+
+    // =========================
+    // UI elements (left panel)
+    // =========================
+    const metaEl = document.getElementById("depsSelectedMeta");
+    const upEl = document.getElementById("depsListUpstream");
+    const downEl = document.getElementById("depsListDownstream");
+    const resetBtn = document.getElementById("depsResetViewBtn");
+
+    function setMeta(title, sub) {
+      if (!metaEl) return;
+      const nameEl = metaEl.querySelector(".deps-selected-meta__name");
+      const subEl = metaEl.querySelector(".deps-selected-meta__sub");
+      if (nameEl) nameEl.textContent = title || "—";
+      if (subEl) subEl.textContent = sub || "";
+    }
+
+    function clearLists() {
+      if (upEl) upEl.innerHTML = "";
+      if (downEl) downEl.innerHTML = "";
+    }
+
+    function escapeHtml(s) {
+      return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[c]));
+    }
+
+    function fillList(el, items) {
+      if (!el) return;
+      el.innerHTML = items
+        .map(
+          (n) =>
+            `<li>${escapeHtml(n.name)} <span style="color:#64748b;">(${escapeHtml(
+              n.sector || "—"
+            )})</span></li>`
+        )
+        .join("");
+    }
+
+    // =========================
+    // Depth slider (1..5)
+    // =========================
+    // depsFocusDepth is a global (already in your file): let depsFocusDepth = 1; // 1..5
+    function ensureDepthSlider() {
+      if (!metaEl) return;
+
+      // if already exists, don't duplicate
+      if (metaEl.querySelector("#depsDepthSlider")) return;
+
+      const wrap = document.createElement("div");
+      wrap.style.marginTop = "10px";
+      wrap.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div style="font-size:12px; font-weight:800; color:#0f172a;">
+            Dependency depth
+          </div>
+          <div style="font-size:12px; font-weight:900; color:#1E42AC;">
+            <span id="depsDepthVal">${Number(depsFocusDepth) || 1}</span>
+          </div>
+        </div>
+        <input id="depsDepthSlider" type="range" min="1" max="5" step="1" value="${Number(depsFocusDepth) || 1}"
+               style="width:100%; margin-top:6px;" />
+        <div style="font-size:11px; color:#64748b; margin-top:6px;">
+          1 = direct dependencies only, 5 = broader neighborhood.
+        </div>
+      `;
+
+      metaEl.appendChild(wrap);
+
+      const slider = metaEl.querySelector("#depsDepthSlider");
+      const valEl = metaEl.querySelector("#depsDepthVal");
+
+      slider?.addEventListener("input", () => {
+        depsFocusDepth = Math.max(1, Math.min(5, Number(slider.value || 1)));
+        if (valEl) valEl.textContent = String(depsFocusDepth);
+
+        // If we are already focused on a node, re-render focused subgraph with the new depth
+        if (depsFocusedNodeId && depsFullData) {
+          const nodesById = new Map(depsFullData.nodes.map((n) => [n.id, n]));
+          const n = nodesById.get(depsFocusedNodeId);
+          if (n) focusOnNode(n);
+        }
+      });
+    }
+
+    ensureDepthSlider();
+
+    // =========================
+    // MULTI-HOP focus (limited by slider depth)
+    // =========================
+    function focusOnNode(node) {
+      if (!node || !depsFullData) return;
+
+      const id = node.id;
+      depsFocusedNodeId = id;
+
+      const nodesById = new Map(depsFullData.nodes.map((n) => [n.id, n]));
+
+      // Build directed adjacency maps
+      const out = new Map(); // source -> targets
+      const inc = new Map(); // target -> sources
+
+      for (const l of depsFullData.links) {
+        const s = linkEndId(l.source);
+        const t = linkEndId(l.target);
+        if (!s || !t) continue;
+
+        if (!out.has(s)) out.set(s, []);
+        if (!inc.has(t)) inc.set(t, []);
+
+        out.get(s).push(t);
+        inc.get(t).push(s);
+      }
+
+      // BFS with depth cap
+      function bfsDepth(startId, nextMap, maxDepth) {
+        const dist = new Map();
+        const q = [startId];
+        dist.set(startId, 0);
+
+        while (q.length) {
+          const cur = q.shift();
+          const d = dist.get(cur);
+
+          if (d >= maxDepth) continue;
+
+          const next = nextMap.get(cur) || [];
+          for (const nid of next) {
+            if (!dist.has(nid)) {
+              dist.set(nid, d + 1);
+              q.push(nid);
+            }
+          }
+        }
+        return dist;
+      }
+
+      const depth = Math.max(1, Math.min(5, Number(depsFocusDepth) || 1));
+
+      // Upstream: follow incoming edges
+      const upstreamDist = bfsDepth(id, inc, depth);
+      // Downstream: follow outgoing edges
+      const downstreamDist = bfsDepth(id, out, depth);
+
+      const reachableIds = new Set([
+        ...upstreamDist.keys(),
+        ...downstreamDist.keys(),
+      ]);
+
+      // Subgraph nodes
+      const subNodes = [...reachableIds]
+        .map((nid) => nodesById.get(nid))
+        .filter(Boolean);
+
+      // Subgraph links: both ends reachable
+      const subLinks = depsFullData.links.filter((l) => {
+        const s = linkEndId(l.source);
+        const t = linkEndId(l.target);
+        return reachableIds.has(s) && reachableIds.has(t);
+      });
+
+      depsGraph.graphData({ nodes: subNodes, links: subLinks });
+      depsGraph.zoomToFit?.(800, 60);
+
+      // Lists with hop labels (exclude selected node itself)
+      const upstreamNodes = [...upstreamDist.entries()]
+        .filter(([nid]) => nid !== id)
+        .sort((a, b) => a[1] - b[1])
+        .map(([nid, hop]) => {
+          const n = nodesById.get(nid);
+          if (!n) return null;
+          return { ...n, name: `L${hop} – ${n.name}` };
+        })
+        .filter(Boolean);
+
+      const downstreamNodes = [...downstreamDist.entries()]
+        .filter(([nid]) => nid !== id)
+        .sort((a, b) => a[1] - b[1])
+        .map(([nid, hop]) => {
+          const n = nodesById.get(nid);
+          if (!n) return null;
+          return { ...n, name: `L${hop} – ${n.name}` };
+        })
+        .filter(Boolean);
+
+      // Better English labels in UI are your HTML concern,
+      // but meta text here will reflect depth:
+      setMeta(
+        node.name || node.id,
+        `Focused view: dependencies up to depth ${depth} (double-click another node to switch)`
+      );
+      fillList(upEl, upstreamNodes);
+      fillList(downEl, downstreamNodes);
+    }
+
+    function resetView() {
+      if (!depsFullData) return;
+      depsFocusedNodeId = null;
+      depsGraph.graphData(depsFullData);
+      depsGraph.zoomToFit?.(450, 12);
+      setMeta("—", "Double-click a node to focus");
+      clearLists();
+    }
+
+    // Wire reset button once
+    if (resetBtn && !resetBtn.__wired) {
+      resetBtn.addEventListener("click", resetView);
+      resetBtn.__wired = true;
+    }
+
+    // Double-click behavior on node click
+    depsGraph.onNodeClick((node) => {
+      const now = Date.now();
+      const isSameNode = depsLastClickNodeId === node?.id;
+      const isDbl = isSameNode && (now - depsLastClickAt) <= DEPS_DBLCLICK_MS;
+
+      depsLastClickAt = now;
+      depsLastClickNodeId = node?.id;
+
+      if (isDbl) {
+        focusOnNode(node);
+      } else {
+        setMeta(
+          node?.name || "—",
+          "Double-click to focus this asset and its dependencies"
+        );
+      }
+    });
+
+    // Constrain canvas to modal size
+    // Constrain canvas to modal size
+    // Constrain canvas to modal size + reliable zoom-to-fit
+    const resize = () => {
+      const w = mountEl.clientWidth || 800;
+      const h = mountEl.clientHeight || 500;
+      depsGraph.width(w).height(h);
+    };
+
+    // IMPORTANT: zoomToFit must happen AFTER size is correct (and after modal layout settles)
+    const fitNow = (ms = 450, padding = 12) => {
+      try {
+        // smaller padding => "closer" camera while still fitting the graph
+        depsGraph.zoomToFit?.(ms, padding);
+      } catch (_) {}
+    };
+
+    resize();
+
+    // Run fit multiple times to catch final modal size after CSS/layout/paint
+    requestAnimationFrame(() => {
+      resize();
+      fitNow(0, 12);
+      requestAnimationFrame(() => {
+        resize();
+        fitNow(250, 12);
+      });
+    });
+
+    // Extra safety for slower machines / fonts / modal transitions
+    setTimeout(() => { resize(); fitNow(350, 12); }, 120);
+    setTimeout(() => { resize(); fitNow(350, 12); }, 350);
+
+    window.addEventListener("resize", () => {
+      resize();
+      // keep it tight on resize too
+      fitNow(250, 12);
+    }, { passive: true });
+
+    //window.addEventListener("resize", resizeAndFit, { passive: true });
+
+  } catch (err) {
+    console.error("[Dependencies Graph] Failed to render graph", err);
+    mountEl.textContent = "Failed to load dependencies graph.";
+  }
+}
+
+
 
 /* =========================
    Boot
    ========================= */
 document.addEventListener("DOMContentLoaded", () => {
   SIM_RUNNING = false;
-
+  const depsCloseBtn = document.getElementById("depsCloseBtn");
   MAP = initMapIfPresent();
   initDecisionSupportChartsIfPresent();
   initChat();
@@ -1252,4 +1755,15 @@ document.addEventListener("DOMContentLoaded", () => {
   if (MAP) {
     MAP.on("idle", () => updateUiVisibility());
   }
+  
+  if (depsCloseBtn) {
+    depsCloseBtn.addEventListener("click", closeDependenciesOverlay);
+  }
+
 });
+
+// =========================
+// Expose dependencies overlay controls globally
+// =========================
+window.openDependenciesOverlay = openDependenciesOverlay;
+window.closeDependenciesOverlay = closeDependenciesOverlay;
