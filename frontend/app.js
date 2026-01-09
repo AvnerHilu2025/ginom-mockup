@@ -124,10 +124,10 @@ function renderSimRunConfirmation(simcfg, onConfirm, onCancel) {
   // Ask for confirmation with buttons
   const elWrap = appendBubble({
     role: "bot",
-    text: "Please confirm: run this simulation now?",
+    text: "Please confirm: prepare this scenario now (no execution yet).",
     extraHTML: `
       <div class="quick-actions" style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-        <button class="quick-btn" data-sim-confirm="1">Run simulation</button>
+        <button class="quick-btn" data-sim-confirm="1">Prepare scenario</button>
         <button class="quick-btn" data-sim-cancel="1">Cancel</button>
       </div>
     `,
@@ -140,6 +140,264 @@ function renderSimRunConfirmation(simcfg, onConfirm, onCancel) {
   confirmBtn?.addEventListener("click", () => onConfirm?.());
   cancelBtn?.addEventListener("click", () => onCancel?.());
 }
+
+// =========================
+// Scenario -> Anchor selection (Option 2 flow)
+// =========================
+
+function requiredAnchorForScenario(scenarioKey) {
+  const s = String(scenarioKey || "").toLowerCase();
+  if (s === "earthquake") return "EPICENTER";
+  if (s === "tsunami") return "IMPACT_CENTER";
+  if (s === "wildfire") return "FIRE_ORIGIN";
+  if (s === "severe_storm") return "FLOOD_POCKET";
+  return null; // cyber_attack, pandemic (and others)
+}
+
+let __anchorMarker = null;
+
+function showScenarioAnchorOnMap(anchorType, lat, lng) {
+  if (!MAP || !window.mapboxgl) return;
+
+  try {
+    // remove old marker
+    if (__anchorMarker) {
+      __anchorMarker.remove();
+      __anchorMarker = null;
+    }
+
+    // add marker
+    __anchorMarker = new mapboxgl.Marker({ color: "#EF4444" })
+      .setLngLat([lng, lat])
+      .setPopup(
+        new mapboxgl.Popup({ offset: 16 }).setHTML(
+          `<div style="font-family: Geist, Arial; font-size:12px;">
+             <b>${escapeHtml(anchorType)}</b><br/>
+             ${lat.toFixed(5)}, ${lng.toFixed(5)}
+           </div>`
+        )
+      )
+      .addTo(MAP);
+
+    // optional: open popup automatically
+    __anchorMarker.getPopup().addTo(MAP);
+        // Ensure it is visible (nice UX)
+    try {
+      MAP.flyTo({ center: [lng, lat], zoom: Math.max(MAP.getZoom(), 11.5), speed: 0.9 });
+    } catch (_) {}
+
+
+  } catch (e) {
+    console.warn("showScenarioAnchorOnMap failed:", e);
+  }
+}
+/*
+async function beginAnchorPickAndPrepare(simcfg) {
+  const anchorType = requiredAnchorForScenario(simcfg?.scenario);
+
+  // No anchor required -> prepare immediately
+  if (!anchorType) {
+    await prepareScenarioNow(simcfg, []);
+    return;
+  }
+
+  if (!MAP) {
+    appendBubble({ role: "bot", text: "Map is not ready. Cannot pick an anchor point." });
+    return;
+  }
+
+  appendBubble({
+    role: "bot",
+    text: `Please click on the map to set the anchor: ${anchorType}.`,
+  });
+
+  // One-time click
+  MAP.getCanvas().style.cursor = "crosshair";
+
+  MAP.once("click", async (e) => {
+    try {
+      MAP.getCanvas().style.cursor = "";
+      const lng = e.lngLat.lng;
+      const lat = e.lngLat.lat;
+
+      // show point on map (your request #1)
+      showScenarioAnchorOnMap(anchorType, lat, lng);
+
+      appendBubble({
+        role: "bot",
+        text: `Anchor set: ${anchorType} at (${lat.toFixed(5)}, ${lng.toFixed(5)}). Preparing scenario...`,
+      });
+
+      const anchors = [{ type: anchorType, lat, lng }];
+      await prepareScenarioNow(simcfg, anchors);
+
+    } catch (err) {
+      console.error("Anchor pick/prepare failed:", err);
+      appendBubble({ role: "bot", text: "Failed to prepare scenario." });
+    } finally {
+      try { MAP.getCanvas().style.cursor = ""; } catch (_) {}
+    }
+  });
+}
+*/
+async function prepareScenarioNow(simcfg, anchors) {
+  try {
+    const { apiPrepareScenario, apiExecute } = await import("./api.js");
+
+    const payload = {
+      city: simcfg.city,
+      scenario: simcfg.scenario,
+      duration_hours: simcfg.duration_hours,
+      tick_minutes: simcfg.tick_minutes,
+      repair_crews: simcfg.repair_crews,
+      anchors,
+    };
+
+    const resp = await apiPrepareScenario(payload);
+
+    // Persist for later use
+    localStorage.setItem("ginom.preparedScenario", JSON.stringify(resp));
+    localStorage.setItem("ginom.preparedScenarioId", String(resp.scenario_instance_id || ""));
+
+    // Render bubble + buttons
+    const elWrap = appendBubble({
+      role: "bot",
+      text:
+        `Scenario is prepared and ready to run.\n` +
+        `- Template: ${resp.template_id}\n` +
+        `- Events created: ${resp.events_created}\n` +
+        `- Assets used: ${resp.assets_used}\n` +
+        `- Total ticks: ${resp.total_ticks}\n` +
+        `Instance ID: ${resp.scenario_instance_id}`,
+      extraHTML: `
+        <div class="quick-actions" style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="quick-btn" data-run-prepared="1">RUN</button>
+          <button class="quick-btn" data-show-prepared="1">Show details</button>
+        </div>
+      `,
+    });
+
+    const runBtn = elWrap?.querySelector?.('[data-run-prepared="1"]');
+    const showBtn = elWrap?.querySelector?.('[data-show-prepared="1"]');
+
+    runBtn?.addEventListener("click", async () => {
+      try {
+        // Send SIM_RUN with scenario_instance_id (execution wiring stays Phase 2 / existing)
+        const exec = await apiExecute(
+          "demo-1",
+          [{ type: "SIM_RUN", payload: { ...simcfg, scenario_instance_id: resp.scenario_instance_id } }],
+          { page: window.location.pathname.split("/").pop(), simcfg, prepared: resp }
+        );
+
+        applyExecuteArtifacts(exec);
+        appendBubble({ role: "bot", text: "RUN command sent." });
+      } catch (e) {
+        console.error("RUN failed:", e);
+        appendBubble({ role: "bot", text: "Failed to start simulation." });
+      }
+    });
+
+    showBtn?.addEventListener("click", async () => {
+      const id = resp.scenario_instance_id;
+      if (!id) return;
+
+      if (typeof window.__ginomSendChat === "function") {
+        await window.__ginomSendChat(`show prepared ${id}`);
+      } else {
+        // fallback: just print the command
+        appendBubble({ role: "bot", text: `Type this command: show prepared ${id}` });
+      }
+    });
+
+  } catch (e) {
+    console.error("prepareScenarioNow failed:", e);
+    appendBubble({ role: "bot", text: "Failed to prepare scenario. Check server logs." });
+  }
+}
+
+// =========================
+// Scenario -> Anchor requirement (Option 2 flow)
+// =========================
+/*
+function requiredAnchorForScenario(scenarioKey) {
+  const s = String(scenarioKey || "").toLowerCase();
+  if (s === "earthquake") return "EPICENTER";
+  if (s === "tsunami") return "IMPACT_CENTER";
+  if (s === "wildfire") return "FIRE_ORIGIN";
+  if (s === "severe_storm") return "FLOOD_POCKET";
+  return null; // cyber_attack, pandemic
+}
+*/
+let __pendingPrepareSimcfg = null;
+let __pendingAnchorType = null;
+let __pendingAnchorMarker = null;
+
+function clearPendingAnchor() {
+  __pendingPrepareSimcfg = null;
+  __pendingAnchorType = null;
+  if (__pendingAnchorMarker) {
+    try { __pendingAnchorMarker.remove(); } catch (_) {}
+  }
+  __pendingAnchorMarker = null;
+}
+
+async function beginAnchorPickAndPrepare(simcfg) {
+  const map = window.__ginomMap;
+  if (!map || !window.mapboxgl) {
+    appendBubble({ role: "bot", text: "Map is not ready. Cannot pick an anchor point." });
+    return;
+  }
+
+  const anchorType = requiredAnchorForScenario(simcfg?.scenario);
+  __pendingPrepareSimcfg = simcfg;
+  __pendingAnchorType = anchorType;
+
+  // No anchor required -> prepare immediately
+  if (!anchorType) {
+    await prepareScenarioNow(simcfg, []);
+    return;
+  }
+
+  appendBubble({
+    role: "bot",
+    text: `Please click on the map to set the anchor: ${anchorType}.`,
+  });
+
+  // One-time click
+  map.getCanvas().style.cursor = "crosshair";
+
+  map.once("click", async (e) => {
+    try {
+      map.getCanvas().style.cursor = "";
+
+      const lng = e.lngLat.lng;
+      const lat = e.lngLat.lat;
+
+      // show marker
+      try {
+        if (__pendingAnchorMarker) __pendingAnchorMarker.remove();
+        __pendingAnchorMarker = new mapboxgl.Marker({ color: "#1E42AC" })
+          .setLngLat([lng, lat])
+          .addTo(map);
+      } catch (_) {}
+
+      const anchors = [{ type: anchorType, lat, lng }];
+
+      appendBubble({
+        role: "bot",
+        text: `Anchor set: ${anchorType} at (${lat.toFixed(5)}, ${lng.toFixed(5)}). Preparing scenario...`,
+      });
+
+      await prepareScenarioNow(__pendingPrepareSimcfg, anchors);
+    } catch (err) {
+      console.error("Anchor pick/prepare failed:", err);
+      appendBubble({ role: "bot", text: "Failed to prepare scenario." });
+    } finally {
+      clearPendingAnchor();
+    }
+  });
+}
+
 
 
 function ensureDependencyLayers(map) {
@@ -1089,7 +1347,7 @@ function initChat() {
     }
 
     if (!message) return;
-    if (/^(run simulation|simulate|start simulation)$/i.test(message)) {
+    if (/^(prep simulation|simulate|prepare simulation|prep sim)$/i.test(message)) {
       // clear input to keep UX consistent
       input.value = "";
       appendBubble({ role: "user", text: message });
@@ -1154,6 +1412,56 @@ function initChat() {
       applyActionsSoft(actions);
     }
   }
+    // Allow other UI elements (buttons) to send a chat message through the same pipeline
+  window.__ginomSendChat = async function (text) {
+    const message = String(text || "").trim();
+    if (!message) return;
+
+    // mirror handleSend UX
+    appendBubble({ role: "user", text: message });
+    setThinking(true);
+
+    let resp;
+    try {
+      resp = await apiChat("demo-1", message, {
+        page: window.location.pathname.split("/").pop(),
+        simcfg: readSimConfigFromForm(),
+      });
+    } catch (e) {
+      resp = localFallbackReply(message);
+    } finally {
+      setThinking(false);
+    }
+
+    appendBubble({ role: "bot", text: resp?.assistant_message || "No response received." });
+
+    // Apply soft actions if any
+    const actions = resp?.actions || [];
+    if (resp?.requires_confirmation && actions.length) {
+      renderApproval(actions, async () => {
+        if (inFlight) return;
+
+        applyActionsSoft(actions);
+        setThinking(true);
+
+        try {
+          const exec = await apiExecute("demo-1", actions, {
+            page: window.location.pathname.split("/").pop(),
+            simcfg: readSimConfigFromForm(),
+          });
+
+          applyExecuteArtifacts(exec);
+          appendBubble({ role: "bot", text: "Approved actions executed." });
+        } catch (e) {
+          appendBubble({ role: "bot", text: "Execution completed (demo mode)." });
+        } finally {
+          setThinking(false);
+        }
+      });
+    } else {
+      applyActionsSoft(actions);
+    }
+  };
 
   send.addEventListener("click", () => {
     if (!inFlight) handleSend();
@@ -1345,6 +1653,7 @@ function wireSimConfigModal() {
     // NEW: Ask for confirmation in chat (do NOT run yet)
     renderSimRunConfirmation(
       simcfg,
+      /*
       async () => {
         // Confirmed: execute SIM_RUN
         try {
@@ -1362,6 +1671,23 @@ function wireSimConfigModal() {
           appendBubble({ role: "bot", text: "Failed to start simulation (demo mode)." });
         }
       },
+      */
+      async () => {
+        try {
+          updateActiveScenarioCard(simcfg);
+          syncImpactTimelineFromSimcfg(simcfg);
+
+          appendBubble({ role: "bot", text: "Preparing scenario (no execution yet)..." });
+          await beginAnchorPickAndPrepare(simcfg);
+
+        } catch (e) {
+          console.error("Prepare flow failed:", e);
+          appendBubble({ role: "bot", text: "Failed to prepare scenario." });
+        }
+      },
+
+
+
       () => {
         appendBubble({ role: "bot", text: "Cancelled. Simulation was not started." });
       }

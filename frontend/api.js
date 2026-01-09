@@ -93,6 +93,13 @@ export function localFallbackReply(message = "") {
   };
 }
 
+
+export async function apiPrepareScenario(payload = {}) {
+  const url = `${DEMO_BACKEND_BASE}/api/scenario/prepare`;
+  return postJson(url, payload);
+}
+
+
 // =========================
 // Dependencies Graph API
 // =========================

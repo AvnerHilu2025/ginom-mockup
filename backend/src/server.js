@@ -3,7 +3,9 @@ import express from "express";
 import cors from "cors";
 import path from "path";
 
-import { getDependenciesGraph, openDb, initSchema, all } from "./db.js";
+//import { getDependenciesGraph, openDb, initSchema, all } from "./db.js";
+import { getDependenciesGraph, openDb, initSchema, all, run, get } from "./db.js";
+
 import { ollamaChat } from "./ollama.js";
 import { systemPrompt, userPrompt } from "./prompts.js";
 import { ragSearch } from "./rag.js";
@@ -24,6 +26,258 @@ loadScenarioTemplatesAuto(DB_PATH);
 
 
 app.get("/health", (req, res) => res.json({ ok: true }));
+
+/* ============================================================
+   Scenario Prepare API (Option A) - create instance + events
+   ============================================================ */
+
+const SCENARIO_TO_TEMPLATE = {
+  earthquake: { template_id: "EQ_030", hazard_type: "EARTHQUAKE", anchor_required: "EPICENTER" },
+  cyber_attack: { template_id: "CY_020", hazard_type: "CYBER", anchor_required: null },
+  tsunami: { template_id: "TS_025", hazard_type: "TSUNAMI", anchor_required: "IMPACT_CENTER" },
+  pandemic: { template_id: "PD_040", hazard_type: "PANDEMIC", anchor_required: null },
+  severe_storm: { template_id: "SS_020", hazard_type: "SEVERE_STORM", anchor_required: "FLOOD_POCKET" },
+  wildfire: { template_id: "WF_020", hazard_type: "WILDFIRE", anchor_required: "FIRE_ORIGIN" },
+};
+
+function nowId(prefix = "scn") {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${prefix}_${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function clampInt(n, lo, hi) {
+  const x = Math.trunc(Number(n));
+  if (!Number.isFinite(x)) return lo;
+  return Math.max(lo, Math.min(hi, x));
+}
+
+function haversineKm(lat1, lng1, lat2, lng2) {
+  const R = 6371;
+  const toRad = (x) => (x * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function pickCount(target_mode, target_value, candidatesCount) {
+  const mode = String(target_mode || "").toUpperCase();
+  const val = Number(target_value || 0);
+
+  if (mode === "COUNT") {
+    return clampInt(val, 0, candidatesCount);
+  }
+  // default PCT
+  const pct = Math.max(0, Math.min(100, val));
+  return clampInt(Math.ceil((pct / 100) * candidatesCount), 0, candidatesCount);
+}
+
+function pctToTickIndex(timePct, totalTicks) {
+  const p = Math.max(0, Math.min(100, Number(timePct || 0)));
+  // event can happen between ticks; visible on next tick -> ceil
+  const idx = Math.ceil((p / 100) * totalTicks);
+  return Math.max(0, Math.min(totalTicks - 1, idx));
+}
+
+function avgRepairMinutes(minv, maxv) {
+  const a = Number(minv);
+  const b = Number(maxv);
+  if (!Number.isFinite(a) && !Number.isFinite(b)) return null;
+  if (!Number.isFinite(a)) return Math.trunc(b);
+  if (!Number.isFinite(b)) return Math.trunc(a);
+  return Math.trunc((a + b) / 2);
+}
+
+async function fetchRules(db, templateId) {
+  return all(
+    db,
+    `
+    SELECT
+      rule_id, template_id,
+      event_kind, time_pct, time_jitter_pct,
+      selection_scope, sector, subtype,
+      target_mode, target_value, allow_reuse_asset,
+      performance_pct, repair_time_min, repair_time_max,
+      geo_anchor, geo_param_1_km, priority, notes
+    FROM scenario_template_rules
+    WHERE template_id = ? AND enabled = 1
+    ORDER BY time_pct ASC, priority DESC, rule_id ASC
+    `,
+    [templateId]
+  );
+}
+
+async function fetchAssetsByCitySectorSubtype(db, city, sector, subtype) {
+  return all(
+    db,
+    `
+    SELECT id, lat, lng, criticality
+    FROM assets
+    WHERE city = ? AND sector = ? AND subtype = ?
+    `,
+    [city, sector, subtype]
+  );
+}
+
+function selectAssetsForRule(rule, candidates, anchors) {
+  const scope = String(rule.selection_scope || "").toUpperCase();
+  let pool = candidates.slice();
+
+  // GEO_RADIUS: filter by distance from anchor
+  if (scope === "GEO_RADIUS") {
+    const anchorKey = String(rule.geo_anchor || "CITY_CENTER").toUpperCase();
+    const a = anchors.find(x => String(x.type).toUpperCase() === anchorKey);
+    const rKm = Number(rule.geo_param_1_km || 0);
+
+    if (a && rKm > 0) {
+      pool = pool.filter(c => haversineKm(a.lat, a.lng, c.lat, c.lng) <= rKm);
+    }
+  }
+
+  // GRAPH_CENTRALITY (mock): prefer high criticality
+  if (scope === "GRAPH_CENTRALITY") {
+    pool.sort((x, y) => Number(y.criticality || 0) - Number(x.criticality || 0));
+  } else {
+    // GEO_SCATTER / default: random-ish but stable order
+    pool.sort((x, y) => String(x.id).localeCompare(String(y.id)));
+  }
+
+  const k = pickCount(rule.target_mode, rule.target_value, pool.length);
+  return pool.slice(0, k);
+}
+
+app.post("/api/scenario/prepare", async (req, res) => {
+  try {
+    const body = req.body || {};
+    const city = String(body.city || "").trim();
+    const scenario = String(body.scenario || "").trim(); // earthquake, tsunami, ...
+    const duration_hours = clampInt(body.duration_hours ?? 72, 1, 168);
+    const tick_minutes = clampInt(body.tick_minutes ?? 10, 1, 60);
+    const repair_crews = clampInt(body.repair_crews ?? 0, 0, 999);
+
+    const anchors = Array.isArray(body.anchors) ? body.anchors : [];
+
+    if (!city) return res.status(400).json({ error: "Missing city" });
+    if (!scenario) return res.status(400).json({ error: "Missing scenario" });
+
+    const mapping = SCENARIO_TO_TEMPLATE[scenario];
+    if (!mapping) return res.status(400).json({ error: `Unknown scenario: ${scenario}` });
+
+    // anchor requirement validation (if required)
+    if (mapping.anchor_required) {
+      const has = anchors.some(a => String(a.type).toUpperCase() === mapping.anchor_required);
+      if (!has) {
+        return res.status(400).json({
+          error: `Missing required anchor: ${mapping.anchor_required}`,
+          required_anchor: mapping.anchor_required,
+        });
+      }
+    }
+
+    // Create instance
+    const instance_id = nowId("scn");
+    await run(
+      db,
+      `
+      INSERT INTO scenario_instances
+        (id, city, scenario, hazard_type, template_id, duration_hours, tick_minutes, repair_crews, status)
+      VALUES
+        (?, ?, ?, ?, ?, ?, ?, ?, 'PREPARED')
+      `,
+      [
+        instance_id,
+        city,
+        scenario,
+        mapping.hazard_type,
+        mapping.template_id,
+        duration_hours,
+        tick_minutes,
+        repair_crews,
+      ]
+    );
+
+    // Save anchors
+    for (const a of anchors) {
+      const type = String(a.type || "").toUpperCase();
+      const lat = Number(a.lat);
+      const lng = Number(a.lng);
+      if (!type || !Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+      await run(
+        db,
+        `
+        INSERT INTO scenario_instance_anchors (instance_id, anchor_type, lat, lng)
+        VALUES (?, ?, ?, ?)
+        `,
+        [instance_id, type, lat, lng]
+      );
+    }
+
+    const rules = await fetchRules(db, mapping.template_id);
+    const totalTicks = Math.max(1, Math.trunc((duration_hours * 60) / tick_minutes));
+
+    // Build events
+    let eventsCreated = 0;
+    const usedAssets = new Set();
+
+    for (const rule of rules) {
+      const candidates = await fetchAssetsByCitySectorSubtype(db, city, rule.sector, rule.subtype);
+
+      if (!candidates.length) {
+        // If you want: collect warnings for UI ("not enough assets")
+        continue;
+      }
+
+      const chosen = selectAssetsForRule(rule, candidates, anchors);
+
+      for (const a of chosen) {
+        // enforce allow_reuse_asset = 0 by default across entire scenario
+        if (!rule.allow_reuse_asset && usedAssets.has(a.id)) continue;
+
+        const tick_index = pctToTickIndex(rule.time_pct, totalTicks);
+        const repair_time_minutes = avgRepairMinutes(rule.repair_time_min, rule.repair_time_max);
+
+        await run(
+          db,
+          `
+          INSERT INTO scenario_events
+            (instance_id, tick_index, event_kind, asset_id, performance_pct, repair_time_minutes, source_rule_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+          `,
+          [
+            instance_id,
+            tick_index,
+            String(rule.event_kind || "").toUpperCase(),
+            a.id,
+            clampInt(rule.performance_pct, 0, 100),
+            repair_time_minutes,
+            rule.rule_id,
+          ]
+        );
+
+        eventsCreated++;
+        usedAssets.add(a.id);
+      }
+    }
+
+    return res.json({
+      scenario_instance_id: instance_id,
+      template_id: mapping.template_id,
+      hazard_type: mapping.hazard_type,
+      total_rules: rules.length,
+      events_created: eventsCreated,
+      assets_used: usedAssets.size,
+      total_ticks: totalTicks,
+      status: "PREPARED",
+    });
+  } catch (err) {
+    console.error("POST /api/scenario/prepare failed:", err);
+    return res.status(500).json({ error: "Internal error" });
+  }
+});
 
 /* ============================================================
    Dependencies API
@@ -393,6 +647,186 @@ function renderTimelineText(templateId, rows, bucketSizePct = 5) {
   }
   return lines.join("\n");
 }
+// =========================
+// Prepared scenarios helpers
+// =========================
+
+async function fetchPreparedInstances(db, limit = 10) {
+  return all(
+    db,
+    `
+    SELECT
+      i.id,
+      i.city,
+      i.scenario,
+      i.template_id,
+      i.status,
+      i.created_at,
+      (SELECT COUNT(*) FROM scenario_events e WHERE e.instance_id = i.id) AS events_count,
+      (SELECT COUNT(DISTINCT asset_id) FROM scenario_events e WHERE e.instance_id = i.id) AS assets_count,
+      (SELECT MIN(tick_index) FROM scenario_events e WHERE e.instance_id = i.id) AS min_tick,
+      (SELECT MAX(tick_index) FROM scenario_events e WHERE e.instance_id = i.id) AS max_tick
+    FROM scenario_instances i
+    WHERE i.status = 'PREPARED'
+    ORDER BY i.created_at DESC
+    LIMIT ?
+    `,
+    [limit]
+  );
+}
+
+async function fetchPreparedSummary(db, instanceId) {
+  const [header] = await all(
+    db,
+    `
+    SELECT id, city, scenario, template_id, hazard_type, duration_hours, tick_minutes, repair_crews, status, created_at
+    FROM scenario_instances
+    WHERE id = ?
+    `,
+    [instanceId]
+  );
+
+  if (!header) return null;
+
+  const anchors = await all(
+    db,
+    `
+    SELECT anchor_type, lat, lng
+    FROM scenario_instance_anchors
+    WHERE instance_id = ?
+    ORDER BY id
+    `,
+    [instanceId]
+  );
+
+  const kindBreakdown = await all(
+    db,
+    `
+    SELECT event_kind, COUNT(*) AS cnt
+    FROM scenario_events
+    WHERE instance_id = ?
+    GROUP BY event_kind
+    `,
+    [instanceId]
+  );
+
+  const sectorBreakdown = await all(
+    db,
+    `
+    SELECT a.sector, a.subtype, COUNT(*) AS cnt
+    FROM scenario_events e
+    JOIN assets a ON a.id = e.asset_id
+    WHERE e.instance_id = ?
+    GROUP BY a.sector, a.subtype
+    ORDER BY cnt DESC
+    LIMIT 10
+    `,
+    [instanceId]
+  );
+
+  const [range] = await all(
+    db,
+    `
+    SELECT MIN(tick_index) AS min_tick, MAX(tick_index) AS max_tick
+    FROM scenario_events
+    WHERE instance_id = ?
+    `,
+    [instanceId]
+  );
+
+  return { header, anchors, kindBreakdown, sectorBreakdown, range };
+}
+
+async function fetchPreparedTimeline(db, instanceId, bucketSize = 20) {
+  const b = Math.max(1, Math.trunc(bucketSize));
+  return all(
+    db,
+    `
+    SELECT
+      CAST(tick_index / ? AS INT) * ? AS bucket_start,
+      CAST(tick_index / ? AS INT) * ? + (? - 1) AS bucket_end,
+      COUNT(*) AS cnt,
+      SUM(CASE WHEN event_kind='IMPACT' THEN 1 ELSE 0 END) AS impacts,
+      SUM(CASE WHEN event_kind='REPAIR' THEN 1 ELSE 0 END) AS repairs
+    FROM scenario_events
+    WHERE instance_id = ?
+    GROUP BY bucket_start, bucket_end
+    ORDER BY bucket_start
+    `,
+    [b, b, b, b, b, instanceId]
+  );
+}
+
+function renderPreparedList(rows) {
+  if (!rows.length) return "No prepared scenarios found.";
+  const lines = ["Prepared scenarios:"];
+  for (const r of rows) {
+    lines.push(
+      `• ${r.id} | ${r.city} | ${r.scenario} | ${r.template_id} | ` +
+      `${r.events_count} events / ${r.assets_count} assets | ticks ${r.min_tick}–${r.max_tick}`
+    );
+  }
+  lines.push("");
+  lines.push("Commands:");
+  lines.push("• show prepared <INSTANCE_ID>");
+  lines.push("• timeline prepared <INSTANCE_ID> [bucket]");
+  return lines.join("\n");
+}
+
+function renderPreparedSummaryText(data) {
+  if (!data) return "Prepared scenario not found.";
+
+  const { header, anchors, kindBreakdown, sectorBreakdown, range } = data;
+  const lines = [];
+
+  lines.push(`Prepared Scenario: ${header.id}`);
+  lines.push(`City: ${header.city}`);
+  lines.push(`Scenario: ${header.scenario}`);
+  lines.push(`Template: ${header.template_id}`);
+  lines.push(`Status: ${header.status}`);
+  lines.push(`Created: ${header.created_at}`);
+  lines.push(`Duration: ${header.duration_hours}h | Tick: ${header.tick_minutes} min`);
+  lines.push("");
+
+  if (anchors.length) {
+    lines.push("Anchors:");
+    for (const a of anchors) {
+      lines.push(`• ${a.anchor_type}: (${a.lat.toFixed(5)}, ${a.lng.toFixed(5)})`);
+    }
+    lines.push("");
+  }
+
+  lines.push("Events breakdown:");
+  for (const k of kindBreakdown) {
+    lines.push(`• ${k.event_kind}: ${k.cnt}`);
+  }
+
+  lines.push("");
+  lines.push(`Tick range: ${range.min_tick} – ${range.max_tick}`);
+  lines.push("");
+
+  lines.push("Top sectors:");
+  for (const s of sectorBreakdown) {
+    lines.push(`• ${s.sector} / ${s.subtype}: ${s.cnt}`);
+  }
+
+  lines.push("");
+  lines.push(`Command: timeline prepared ${header.id}`);
+  return lines.join("\n");
+}
+
+function renderPreparedTimelineText(instanceId, rows, bucket) {
+  if (!rows.length) return `No timeline data for ${instanceId}.`;
+  const lines = [`Timeline for ${instanceId} (bucket=${bucket} ticks):`, ""];
+  for (const r of rows) {
+    lines.push(
+      `• ticks ${r.bucket_start}–${r.bucket_end}: ${r.cnt} events ` +
+      `(IMPACT ${r.impacts}, REPAIR ${r.repairs})`
+    );
+  }
+  return lines.join("\n");
+}
+
 
 /**
  * POST /api/chat
@@ -473,6 +907,48 @@ app.post("/api/chat", async (req, res) => {
         questions: [],
       });
     }
+
+    // =========================
+    // Prepared scenarios commands
+    // =========================
+
+    if (/^prepared$/i.test(message.trim())) {
+      const rows = await fetchPreparedInstances(db, 10);
+      return res.json({
+        assistant_message: renderPreparedList(rows),
+        requires_confirmation: false,
+        actions: [],
+        questions: [],
+      });
+    }
+
+    const mShow = message.trim().match(/^show\s+prepared\s+([A-Za-z0-9_-]+)$/i);
+    if (mShow) {
+      const id = mShow[1];
+      const data = await fetchPreparedSummary(db, id);
+      return res.json({
+        assistant_message: renderPreparedSummaryText(data),
+        requires_confirmation: false,
+        actions: [],
+        questions: [],
+      });
+    }
+
+    const mPreparedTimeline = message.trim().match(
+      /^timeline\s+prepared\s+([A-Za-z0-9_-]+)(?:\s+(\d+))?$/i
+    );
+    if (mPreparedTimeline) {
+      const id = mPreparedTimeline[1];
+      const bucket = mPreparedTimeline[2] ? Number(mPreparedTimeline[2]) : 20;
+      const rows = await fetchPreparedTimeline(db, id, bucket);
+      return res.json({
+        assistant_message: renderPreparedTimelineText(id, rows, bucket),
+        requires_confirmation: false,
+        actions: [],
+        questions: [],
+      });
+}
+
 // ---------- City intent: user typed a city name (e.g., "London") ----------
     const looksLikeCity =
       /^[a-zA-Z\s.'-]{2,}$/.test(text) &&

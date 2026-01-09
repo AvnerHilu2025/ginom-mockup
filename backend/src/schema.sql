@@ -67,3 +67,92 @@ CREATE TABLE IF NOT EXISTS asset_operational_state (
 
   FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
 );
+
+-- =========================================
+-- Scenario Templates (if not already created by migration)
+-- =========================================
+CREATE TABLE IF NOT EXISTS scenario_templates (
+  template_id TEXT PRIMARY KEY,
+  template_name TEXT NOT NULL,
+  hazard_type TEXT NOT NULL,
+  version INTEGER DEFAULT 1,
+  is_active INTEGER DEFAULT 1,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS scenario_template_rules (
+  rule_id TEXT PRIMARY KEY,
+  template_id TEXT NOT NULL,
+  event_kind TEXT NOT NULL,                 -- IMPACT | REPAIR
+  time_pct REAL NOT NULL,                   -- % of scenario duration
+  time_jitter_pct REAL NOT NULL DEFAULT 0,  -- optional jitter
+  selection_scope TEXT NOT NULL,            -- GEO_RADIUS | GEO_SCATTER | GRAPH_CENTRALITY ...
+  sector TEXT NOT NULL,
+  subtype TEXT NOT NULL,
+  target_mode TEXT NOT NULL,                -- PCT | COUNT
+  target_value REAL NOT NULL,
+  allow_reuse_asset INTEGER NOT NULL DEFAULT 0,
+  performance_pct INTEGER NOT NULL,         -- 0..100 (set-to)
+  repair_time_min INTEGER,
+  repair_time_max INTEGER,
+  geo_anchor TEXT NOT NULL DEFAULT 'CITY_CENTER',
+  geo_param_1_km REAL NOT NULL DEFAULT 0,
+  priority INTEGER NOT NULL DEFAULT 5,
+  notes TEXT,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (template_id) REFERENCES scenario_templates(template_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rules_template
+  ON scenario_template_rules(template_id);
+
+-- =========================================
+-- Scenario Instance + Prepared Events (Option A)
+-- =========================================
+CREATE TABLE IF NOT EXISTS scenario_instances (
+  id TEXT PRIMARY KEY,
+  city TEXT NOT NULL,
+  scenario TEXT NOT NULL,               -- UI scenario key (earthquake, tsunami...)
+  hazard_type TEXT NOT NULL,
+  template_id TEXT NOT NULL,
+  duration_hours INTEGER NOT NULL,
+  tick_minutes INTEGER NOT NULL,
+  repair_crews INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'PREPARED',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (template_id) REFERENCES scenario_templates(template_id)
+);
+
+CREATE TABLE IF NOT EXISTS scenario_instance_anchors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  instance_id TEXT NOT NULL,
+  anchor_type TEXT NOT NULL,            -- EPICENTER / IMPACT_CENTER / ...
+  lat REAL NOT NULL,
+  lng REAL NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (instance_id) REFERENCES scenario_instances(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_instance_anchors_instance
+  ON scenario_instance_anchors(instance_id);
+
+CREATE TABLE IF NOT EXISTS scenario_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  instance_id TEXT NOT NULL,
+  tick_index INTEGER NOT NULL,
+  event_kind TEXT NOT NULL,             -- IMPACT | REPAIR
+  asset_id TEXT NOT NULL,
+  performance_pct INTEGER NOT NULL,     -- set-to 0..100
+  repair_time_minutes INTEGER,          -- optional
+  source_rule_id TEXT,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (instance_id) REFERENCES scenario_instances(id) ON DELETE CASCADE,
+  FOREIGN KEY (asset_id) REFERENCES assets(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_events_instance
+  ON scenario_events(instance_id);
+
+CREATE INDEX IF NOT EXISTS idx_events_instance_tick
+  ON scenario_events(instance_id, tick_index);
