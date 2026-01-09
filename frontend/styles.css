@@ -1583,3 +1583,7 @@ html, body {
   font-size: 11px;
   color: #64748b;
 }
+
+.msg {
+  white-space: pre-wrap;
+}

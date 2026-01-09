@@ -1,0 +1,44 @@
+template_id,template_name,hazard_type,rule_id,event_kind,time_pct,time_jitter_pct,selection_scope,sector,subtype,target_mode,target_value,allow_reuse_asset,performance_pct,repair_time_min,repair_time_max,geo_anchor,geo_param_1_km,priority,notes
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R001,IMPACT,3.5,0.4,GEO_RADIUS,electricity,mv_node,PCT,26,0,30,240,720,FIRE_FRONT,6,10,Front: MV faults (heat/smoke/vegetation)
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R002,IMPACT,3.8,0.4,GEO_RADIUS,electricity,lv_node,PCT,30,0,40,180,540,FIRE_FRONT,7,9,Front: LV trips
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R003,IMPACT,4.1,0.4,GEO_RADIUS,electricity,transformer,PCT,14,0,20,360,960,FIRE_FRONT,6,9,Front: transformer damage
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R004,IMPACT,4.4,0.4,GEO_RADIUS,electricity,substation,PCT,10,0,35,720,1440,FIRE_FRONT,5,8,Front: substation shutdowns
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R005,IMPACT,4.7,0.4,GEO_RADIUS,communication,cell_tower,PCT,16,0,50,240,720,FIRE_FRONT,7,8,Comms degraded near front
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R006,IMPACT,5.0,0.4,GEO_RADIUS,water,pump_station,PCT,16,0,40,360,1080,FIRE_FRONT,7,8,Pumps constrained near fire
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R007,IMPACT,5.3,0.4,GEO_RADIUS,water,reservoir,PCT,12,0,60,480,1440,FIRE_FRONT,8,7,Reservoir pressure/quality issues
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R008,IMPACT,5.6,0.4,GEO_RADIUS,gas,regulator,PCT,12,0,50,360,1080,FIRE_FRONT,7,6,Gas safety shutdowns
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R009,IMPACT,8.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,55,180,540,CITY_CENTER,0,6,Embers: LV spot outages
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R010,IMPACT,8.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,45,240,720,CITY_CENTER,0,6,Embers: MV spot faults
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R011,IMPACT,8.4,0.4,GEO_SCATTER,communication,fiber_node,PCT,6,0,60,240,720,CITY_CENTER,0,5,Smoke: fiber instability
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R012,IMPACT,10.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,55,180,540,CITY_CENTER,0,6,Embers: LV spot outages
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R013,IMPACT,10.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,45,240,720,CITY_CENTER,0,6,Embers: MV spot faults
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R014,IMPACT,10.4,0.4,GEO_SCATTER,communication,fiber_node,PCT,6,0,60,240,720,CITY_CENTER,0,5,Smoke: fiber instability
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R015,IMPACT,12.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,55,180,540,CITY_CENTER,0,6,Embers: LV spot outages
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R016,IMPACT,12.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,45,240,720,CITY_CENTER,0,6,Embers: MV spot faults
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R017,IMPACT,12.4,0.4,GEO_SCATTER,communication,fiber_node,PCT,6,0,60,240,720,CITY_CENTER,0,5,Smoke: fiber instability
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R018,IMPACT,14.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,55,180,540,CITY_CENTER,0,6,Embers: LV spot outages
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R019,IMPACT,14.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,45,240,720,CITY_CENTER,0,6,Embers: MV spot faults
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R020,IMPACT,14.4,0.4,GEO_SCATTER,communication,fiber_node,PCT,6,0,60,240,720,CITY_CENTER,0,5,Smoke: fiber instability
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R021,IMPACT,6.5,0.4,GEO_SCATTER,first_responders,fire_station,PCT,18,0,60,240,720,CITY_CENTER,0,8,Fire stations overloaded
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R022,IMPACT,6.8,0.4,GEO_SCATTER,first_responders,ems,PCT,16,0,70,240,720,CITY_CENTER,0,7,EMS constrained
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R023,IMPACT,7.1,0.4,GEO_SCATTER,first_responders,police,PCT,12,0,75,240,720,CITY_CENTER,0,6,Police constrained
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R024,REPAIR,28.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,30,0,75,180,540,CITY_CENTER,0,7,Wave1: LV restoration
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R025,REPAIR,30.0,0.4,GEO_SCATTER,electricity,mv_node,PCT,24,0,75,240,720,CITY_CENTER,0,7,Wave1: MV restoration
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R026,REPAIR,34.0,0.4,GEO_SCATTER,communication,cell_tower,PCT,16,0,80,240,720,CITY_CENTER,0,6,Wave1: comms restoration
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R027,REPAIR,38.0,0.4,GEO_RADIUS,electricity,transformer,PCT,14,0,70,360,960,FIRE_FRONT,6,6,Wave2: transformer replacement
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R028,REPAIR,42.0,0.4,GEO_RADIUS,electricity,substation,PCT,10,0,70,720,1440,FIRE_FRONT,5,5,Wave2: substation recovery
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R029,REPAIR,48.0,0.4,GEO_RADIUS,water,pump_station,PCT,16,0,85,360,1080,FIRE_FRONT,7,5,Pumps normalized
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R030,REPAIR,60.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,12,0,92,180,540,CITY_CENTER,0,3,Late: remaining LV
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R031,REPAIR,70.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,10,0,90,240,720,CITY_CENTER,0,2,Late: fiber stabilized
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R032,REPAIR,85.0,0.4,GEO_SCATTER,first_responders,fire_station,PCT,18,0,92,240,720,CITY_CENTER,0,2,Fire services recover
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R033,IMPACT,20.0,0.4,GEO_RADIUS,electricity,mv_node,PCT,8,0,35,240,720,FIRE_FRONT,6,5,Flare-up: MV relapses
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R034,IMPACT,20.2,0.4,GEO_RADIUS,electricity,lv_node,PCT,10,0,45,180,540,FIRE_FRONT,7,5,Flare-up: LV relapses
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R035,IMPACT,22.0,0.4,GEO_RADIUS,electricity,mv_node,PCT,8,0,35,240,720,FIRE_FRONT,6,5,Flare-up: MV relapses
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R036,IMPACT,22.2,0.4,GEO_RADIUS,electricity,lv_node,PCT,10,0,45,180,540,FIRE_FRONT,7,5,Flare-up: LV relapses
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R037,REPAIR,50.0,0.4,GEO_SCATTER,gas,regulator,PCT,12,0,85,360,1080,CITY_CENTER,0,4,Gas regulators restored
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R038,REPAIR,52.0,0.4,GEO_SCATTER,gas,pipeline_node,PCT,10,0,90,360,1080,CITY_CENTER,0,3,Pipeline nodes restored
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R039,REPAIR,55.0,0.4,GEO_SCATTER,water,reservoir,PCT,12,0,90,480,1440,CITY_CENTER,0,3,Reservoir recovery
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R040,REPAIR,58.0,0.4,GEO_SCATTER,first_responders,ems,PCT,16,0,90,240,720,CITY_CENTER,0,3,EMS improves
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R041,REPAIR,62.0,0.4,GEO_SCATTER,first_responders,police,PCT,12,0,92,240,720,CITY_CENTER,0,2,Police improves
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R042,IMPACT,16.0,0.4,GEO_SCATTER,communication,cell_tower,PCT,6,0,55,240,720,CITY_CENTER,0,4,Smoke: tower degradation
+WF_020,Wildfire – Urban Interface,WILDFIRE,WF_020_R043,IMPACT,18.0,0.4,GEO_SCATTER,communication,cell_tower,PCT,6,0,55,240,720,CITY_CENTER,0,4,Smoke: tower degradation

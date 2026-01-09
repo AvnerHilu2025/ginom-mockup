@@ -1,0 +1,42 @@
+template_id,template_name,hazard_type,rule_id,event_kind,time_pct,time_jitter_pct,selection_scope,sector,subtype,target_mode,target_value,allow_reuse_asset,performance_pct,repair_time_min,repair_time_max,geo_anchor,geo_param_1_km,priority,notes
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R001,IMPACT,2.5,0.4,GEO_RADIUS,electricity,substation,PCT,24,0,0,1440,4320,FLOOD_POCKET,5,10,Inundation: electrical assets flooded
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R002,IMPACT,2.5,0.4,GEO_RADIUS,electricity,transformer,PCT,30,0,10,1440,4320,FLOOD_POCKET,6,10,Inundation: electrical assets flooded
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R003,IMPACT,2.5,0.4,GEO_RADIUS,electricity,mv_node,PCT,34,0,30,1440,4320,FLOOD_POCKET,7,10,Inundation: electrical assets flooded
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R004,IMPACT,2.5,0.4,GEO_RADIUS,electricity,lv_node,PCT,36,0,40,1440,4320,FLOOD_POCKET,8,10,Inundation: electrical assets flooded
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R005,IMPACT,3.2,0.4,GEO_RADIUS,communication,cell_tower,PCT,18,0,40,360,1440,FLOOD_POCKET,7,8,Coastal/lowland towers fail
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R006,IMPACT,3.5,0.4,GEO_RADIUS,communication,exchange,PCT,14,0,50,480,1440,FLOOD_POCKET,6,8,Exchange impacted by flood/power
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R007,IMPACT,3.8,0.4,GEO_RADIUS,water,pump_station,PCT,24,0,10,720,2160,FLOOD_POCKET,8,9,Pumps inundated
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R008,IMPACT,4.1,0.4,GEO_RADIUS,water,treatment,PCT,18,0,20,1440,4320,FLOOD_POCKET,7,8,Treatment offline
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R009,IMPACT,4.4,0.4,GEO_RADIUS,gas,regulator,PCT,14,0,30,720,2160,FLOOD_POCKET,7,7,Gas safety shutdowns
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R010,IMPACT,4.7,0.4,GEO_RADIUS,gas,pipeline_node,PCT,12,0,40,720,2160,FLOOD_POCKET,8,6,Pipeline isolation
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R011,IMPACT,6.0,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,50,240,720,CITY_CENTER,0,6,Secondary: feeder trips due to switching
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R012,IMPACT,6.2,0.4,GEO_SCATTER,communication,fiber_node,PCT,6,0,60,240,720,CITY_CENTER,0,6,Secondary: fiber nodes overloaded
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R013,IMPACT,6.4,0.4,GEO_SCATTER,water,reservoir,PCT,6,0,70,480,1440,CITY_CENTER,0,5,Secondary: reservoir operations constrained
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R014,IMPACT,7.0,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,50,240,720,CITY_CENTER,0,6,Secondary: feeder trips due to switching
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R015,IMPACT,7.2,0.4,GEO_SCATTER,communication,fiber_node,PCT,6,0,60,240,720,CITY_CENTER,0,6,Secondary: fiber nodes overloaded
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R016,IMPACT,7.4,0.4,GEO_SCATTER,water,reservoir,PCT,6,0,70,480,1440,CITY_CENTER,0,5,Secondary: reservoir operations constrained
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R017,IMPACT,8.0,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,50,240,720,CITY_CENTER,0,6,Secondary: feeder trips due to switching
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R018,IMPACT,8.2,0.4,GEO_SCATTER,communication,fiber_node,PCT,6,0,60,240,720,CITY_CENTER,0,6,Secondary: fiber nodes overloaded
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R019,IMPACT,8.4,0.4,GEO_SCATTER,water,reservoir,PCT,6,0,70,480,1440,CITY_CENTER,0,5,Secondary: reservoir operations constrained
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R020,IMPACT,9.0,0.4,GEO_SCATTER,first_responders,ems,PCT,20,0,60,240,720,CITY_CENTER,0,7,EMS constrained (evacuation/search)
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R021,IMPACT,9.3,0.4,GEO_SCATTER,first_responders,police,PCT,14,0,70,240,720,CITY_CENTER,0,6,Police constrained
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R022,IMPACT,9.6,0.4,GEO_SCATTER,first_responders,fire_station,PCT,12,0,70,240,720,CITY_CENTER,0,6,Fire constrained
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R023,REPAIR,35.0,0.4,GEO_RADIUS,electricity,lv_node,PCT,22,0,70,240,720,FLOOD_POCKET,8,7,Drainage enables LV partial restore
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R024,REPAIR,38.0,0.4,GEO_RADIUS,electricity,mv_node,PCT,20,0,70,360,1080,FLOOD_POCKET,7,6,MV cabinets cleaned
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R025,REPAIR,45.0,0.4,GEO_RADIUS,electricity,transformer,PCT,24,0,60,720,2160,FLOOD_POCKET,6,6,Transformers swapped/dried
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R026,REPAIR,55.0,0.4,GEO_RADIUS,electricity,substation,PCT,20,0,55,1440,4320,FLOOD_POCKET,5,5,Substations recover late
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R027,REPAIR,60.0,0.4,GEO_RADIUS,water,pump_station,PCT,18,0,80,720,2160,FLOOD_POCKET,8,5,Pumps restored after debris clearing
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R028,REPAIR,70.0,0.4,GEO_RADIUS,water,treatment,PCT,16,0,85,1440,4320,FLOOD_POCKET,7,4,Treatment stabilizes late
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R029,REPAIR,75.0,0.4,GEO_RADIUS,gas,regulator,PCT,14,0,85,720,2160,FLOOD_POCKET,7,4,Gas regulators restored
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R030,REPAIR,80.0,0.4,GEO_SCATTER,communication,cell_tower,PCT,18,0,90,360,1440,CITY_CENTER,0,3,Comms restored citywide
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R031,REPAIR,85.0,0.4,GEO_SCATTER,first_responders,ems,PCT,20,0,90,240,720,CITY_CENTER,0,3,EMS returns
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R032,IMPACT,12.0,0.4,GEO_RADIUS,electricity,lv_node,PCT,10,0,30,240,720,FLOOD_POCKET,8,6,Secondary surge: LV relapses
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R033,IMPACT,12.3,0.4,GEO_RADIUS,communication,cell_tower,PCT,6,0,35,360,1440,FLOOD_POCKET,7,5,Secondary surge: towers relapses
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R034,IMPACT,16.0,0.4,GEO_RADIUS,electricity,lv_node,PCT,10,0,30,240,720,FLOOD_POCKET,8,6,Secondary surge: LV relapses
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R035,IMPACT,16.3,0.4,GEO_RADIUS,communication,cell_tower,PCT,6,0,35,360,1440,FLOOD_POCKET,7,5,Secondary surge: towers relapses
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R036,REPAIR,50.0,0.4,GEO_RADIUS,communication,exchange,PCT,14,0,75,480,1440,FLOOD_POCKET,6,4,Exchange dried and powered
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R037,REPAIR,52.0,0.4,GEO_RADIUS,communication,fiber_node,PCT,12,0,80,360,1080,FLOOD_POCKET,7,4,Fiber nodes restored in flooded zone
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R038,REPAIR,65.0,0.4,GEO_SCATTER,water,reservoir,PCT,10,0,90,480,1440,CITY_CENTER,0,3,Reservoir operations normalize
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R039,REPAIR,90.0,0.4,GEO_SCATTER,gas,pipeline_node,PCT,10,0,92,720,1440,CITY_CENTER,0,2,Pipeline nodes fully restored
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R040,REPAIR,92.0,0.4,GEO_SCATTER,first_responders,police,PCT,14,0,92,240,720,CITY_CENTER,0,2,Police returns
+TS_025,Tsunami/Flood – Lowland Inundation,TSUNAMI,TS_025_R041,REPAIR,93.0,0.4,GEO_SCATTER,first_responders,fire_station,PCT,12,0,92,240,720,CITY_CENTER,0,2,Fire returns

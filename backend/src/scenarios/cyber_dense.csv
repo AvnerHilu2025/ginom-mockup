@@ -1,0 +1,48 @@
+template_id,template_name,hazard_type,rule_id,event_kind,time_pct,time_jitter_pct,selection_scope,sector,subtype,target_mode,target_value,allow_reuse_asset,performance_pct,repair_time_min,repair_time_max,geo_anchor,geo_param_1_km,priority,notes
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R001,IMPACT,2.0,0.4,GRAPH_CENTRALITY,communication,exchange,PCT,2,0,20,720,1440,CITY_CENTER,0,10,Primary: exchange compromise
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R002,IMPACT,2.3,0.4,GRAPH_CENTRALITY,communication,fiber_node,PCT,4,0,35,360,1080,CITY_CENTER,0,9,Primary: backbone routing attack
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R003,IMPACT,2.6,0.4,GEO_SCATTER,communication,cell_tower,PCT,12,0,60,240,720,CITY_CENTER,0,8,Tower management/backhaul disrupted
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R004,IMPACT,3.0,0.4,GRAPH_CENTRALITY,electricity,substation,PCT,2,0,0,720,1440,CITY_CENTER,0,9,SCADA compromise forces substation shutdown
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R005,IMPACT,3.3,0.4,GEO_SCATTER,electricity,transformer,PCT,16,0,45,240,600,CITY_CENTER,0,8,Protection mis-ops: transformers
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R006,IMPACT,3.6,0.4,GEO_SCATTER,electricity,mv_node,PCT,28,0,55,120,300,CITY_CENTER,0,8,Feeder trips across city
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R007,IMPACT,3.9,0.4,GEO_SCATTER,electricity,lv_node,PCT,24,0,65,90,240,CITY_CENTER,0,7,LV anomalies/outages
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R008,IMPACT,4.5,0.4,GEO_SCATTER,water,pump_station,PCT,14,0,60,360,720,CITY_CENTER,0,7,Pump control disruption + power loss
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R009,IMPACT,4.8,0.4,GEO_SCATTER,water,treatment,PCT,10,0,70,720,1440,CITY_CENTER,0,6,Treatment constrained
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R010,IMPACT,5.1,0.4,GEO_SCATTER,gas,regulator,PCT,12,0,60,360,720,CITY_CENTER,0,6,Gas SCADA safety shutdowns
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R011,IMPACT,5.4,0.4,GEO_SCATTER,gas,pipeline_node,PCT,10,0,70,360,720,CITY_CENTER,0,5,Pipeline node isolation
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R012,IMPACT,10.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,8,0,50,240,720,CITY_CENTER,0,5,Persistence: routing instability
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R013,IMPACT,10.3,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,45,180,420,CITY_CENTER,0,5,Persistence: feeder relapses
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R014,IMPACT,12.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,8,0,50,240,720,CITY_CENTER,0,5,Persistence: routing instability
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R015,IMPACT,12.3,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,45,180,420,CITY_CENTER,0,5,Persistence: feeder relapses
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R016,IMPACT,14.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,8,0,50,240,720,CITY_CENTER,0,5,Persistence: routing instability
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R017,IMPACT,14.3,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,45,180,420,CITY_CENTER,0,5,Persistence: feeder relapses
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R018,IMPACT,16.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,8,0,50,240,720,CITY_CENTER,0,5,Persistence: routing instability
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R019,IMPACT,16.3,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,45,180,420,CITY_CENTER,0,5,Persistence: feeder relapses
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R020,REPAIR,26.0,0.4,GRAPH_CENTRALITY,communication,exchange,PCT,2,0,60,480,960,CITY_CENTER,0,8,Containment: exchanges partially restored
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R021,REPAIR,26.5,0.4,GRAPH_CENTRALITY,electricity,substation,PCT,2,0,55,480,960,CITY_CENTER,0,8,Containment: substations to partial ops
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R022,REPAIR,27.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,18,0,70,240,720,CITY_CENTER,0,7,Containment: routing stabilized
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R023,REPAIR,27.5,0.4,GEO_SCATTER,electricity,mv_node,PCT,28,0,75,120,300,CITY_CENTER,0,7,Containment: feeders reclosed
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R024,REPAIR,28.0,0.4,GEO_SCATTER,electricity,transformer,PCT,16,0,70,180,420,CITY_CENTER,0,6,Containment: restore transformer configs
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R025,REPAIR,28.5,0.4,GEO_SCATTER,electricity,lv_node,PCT,24,0,80,90,180,CITY_CENTER,0,6,Containment: LV anomalies cleared
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R026,REPAIR,45.0,0.4,GEO_SCATTER,water,pump_station,PCT,14,0,80,360,720,CITY_CENTER,0,5,Recovery: pumps restored
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R027,REPAIR,46.0,0.4,GEO_SCATTER,gas,regulator,PCT,12,0,85,360,720,CITY_CENTER,0,4,Recovery: gas regulators restored
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R028,REPAIR,55.0,0.4,GEO_SCATTER,communication,cell_tower,PCT,12,0,90,180,540,CITY_CENTER,0,3,Recovery: towers stabilize
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R029,REPAIR,60.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,10,0,92,240,720,CITY_CENTER,0,2,Recovery: fiber stable
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R030,REPAIR,65.0,0.4,GEO_SCATTER,electricity,mv_node,PCT,10,0,92,180,420,CITY_CENTER,0,2,Recovery: MV stable
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R031,REPAIR,70.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,95,120,300,CITY_CENTER,0,1,Recovery: LV stable
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R032,IMPACT,6.0,0.4,GEO_SCATTER,first_responders,ems,PCT,18,0,80,240,720,CITY_CENTER,0,6,Call centers overwhelmed / dispatch degraded
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R033,IMPACT,6.3,0.4,GEO_SCATTER,first_responders,police,PCT,12,0,85,240,720,CITY_CENTER,0,5,Police IT outages slow response
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R034,IMPACT,6.6,0.4,GEO_SCATTER,first_responders,fire_station,PCT,10,0,85,240,720,CITY_CENTER,0,5,Fire IT outages slow response
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R035,IMPACT,7.0,0.4,GEO_SCATTER,gas,storage,PCT,6,0,60,720,1440,CITY_CENTER,0,4,Storage monitoring compromised; conservative ops
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R036,IMPACT,7.5,0.4,GEO_SCATTER,water,reservoir,PCT,6,0,70,480,1440,CITY_CENTER,0,4,Reservoir telemetry degraded
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R037,IMPACT,18.0,0.4,GEO_SCATTER,electricity,transformer,PCT,6,0,50,240,600,CITY_CENTER,0,4,Persistence: transformer mis-ops
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R038,IMPACT,18.2,0.4,GEO_SCATTER,electricity,lv_node,PCT,8,0,55,120,240,CITY_CENTER,0,4,Persistence: LV relapses
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R039,IMPACT,20.0,0.4,GEO_SCATTER,electricity,transformer,PCT,6,0,50,240,600,CITY_CENTER,0,4,Persistence: transformer mis-ops
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R040,IMPACT,20.2,0.4,GEO_SCATTER,electricity,lv_node,PCT,8,0,55,120,240,CITY_CENTER,0,4,Persistence: LV relapses
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R041,IMPACT,22.0,0.4,GEO_SCATTER,electricity,transformer,PCT,6,0,50,240,600,CITY_CENTER,0,4,Persistence: transformer mis-ops
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R042,IMPACT,22.2,0.4,GEO_SCATTER,electricity,lv_node,PCT,8,0,55,120,240,CITY_CENTER,0,4,Persistence: LV relapses
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R043,REPAIR,40.0,0.4,GEO_SCATTER,first_responders,ems,PCT,18,0,90,240,720,CITY_CENTER,0,4,Response recovers with comms
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R044,REPAIR,42.0,0.4,GEO_SCATTER,first_responders,police,PCT,12,0,92,240,720,CITY_CENTER,0,3,Police IT recovered
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R045,REPAIR,44.0,0.4,GEO_SCATTER,first_responders,fire_station,PCT,10,0,92,240,720,CITY_CENTER,0,3,Fire IT recovered
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R046,REPAIR,48.0,0.4,GEO_SCATTER,water,reservoir,PCT,6,0,85,480,1440,CITY_CENTER,0,3,Reservoir telemetry restored
+CY_020,Cyberattack – Coordinated Multi-sector,CYBER,CY_020_R047,REPAIR,50.0,0.4,GEO_SCATTER,gas,storage,PCT,6,0,85,720,1440,CITY_CENTER,0,2,Storage monitoring restored

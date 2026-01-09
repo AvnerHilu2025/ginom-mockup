@@ -1,0 +1,42 @@
+template_id,template_name,hazard_type,rule_id,event_kind,time_pct,time_jitter_pct,selection_scope,sector,subtype,target_mode,target_value,allow_reuse_asset,performance_pct,repair_time_min,repair_time_max,geo_anchor,geo_param_1_km,priority,notes
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R001,IMPACT,2.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,34,0,45,120,300,CITY_CENTER,0,10,Wind: widespread LV outages
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R002,IMPACT,2.3,0.4,GEO_SCATTER,electricity,mv_node,PCT,28,0,40,180,420,CITY_CENTER,0,9,Wind: MV faults
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R003,IMPACT,2.6,0.4,GEO_SCATTER,electricity,transformer,PCT,14,0,30,240,720,CITY_CENTER,0,9,Lightning: transformer failures
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R004,IMPACT,2.9,0.4,GEO_SCATTER,communication,cell_tower,PCT,14,0,60,180,540,CITY_CENTER,0,8,Towers degraded by power/backhaul
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R005,IMPACT,3.2,0.4,GEO_SCATTER,communication,fiber_node,PCT,12,0,55,240,720,CITY_CENTER,0,8,Fiber instability
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R006,IMPACT,3.5,0.4,GEO_RADIUS,electricity,substation,PCT,14,0,0,720,2160,FLOOD_POCKET,5,9,Flood pocket: substations offline
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R007,IMPACT,3.8,0.4,GEO_RADIUS,water,pump_station,PCT,16,0,20,360,1080,FLOOD_POCKET,5,8,Flood pocket: pumps constrained
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R008,IMPACT,4.1,0.4,GEO_RADIUS,gas,regulator,PCT,12,0,50,360,1080,FLOOD_POCKET,5,7,Flood pocket: gas shutdowns
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R009,IMPACT,6.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,55,120,300,CITY_CENTER,0,6,Ongoing gusts: LV repeat outages
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R010,IMPACT,6.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,50,180,420,CITY_CENTER,0,6,Ongoing gusts: MV repeat outages
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R011,IMPACT,6.4,0.4,GEO_SCATTER,communication,cell_tower,PCT,6,0,65,180,540,CITY_CENTER,0,5,Ongoing: tower instability
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R012,IMPACT,8.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,55,120,300,CITY_CENTER,0,6,Ongoing gusts: LV repeat outages
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R013,IMPACT,8.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,50,180,420,CITY_CENTER,0,6,Ongoing gusts: MV repeat outages
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R014,IMPACT,8.4,0.4,GEO_SCATTER,communication,cell_tower,PCT,6,0,65,180,540,CITY_CENTER,0,5,Ongoing: tower instability
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R015,IMPACT,10.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,55,120,300,CITY_CENTER,0,6,Ongoing gusts: LV repeat outages
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R016,IMPACT,10.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,50,180,420,CITY_CENTER,0,6,Ongoing gusts: MV repeat outages
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R017,IMPACT,10.4,0.4,GEO_SCATTER,communication,cell_tower,PCT,6,0,65,180,540,CITY_CENTER,0,5,Ongoing: tower instability
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R018,IMPACT,12.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,55,120,300,CITY_CENTER,0,6,Ongoing gusts: LV repeat outages
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R019,IMPACT,12.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,50,180,420,CITY_CENTER,0,6,Ongoing gusts: MV repeat outages
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R020,IMPACT,12.4,0.4,GEO_SCATTER,communication,cell_tower,PCT,6,0,65,180,540,CITY_CENTER,0,5,Ongoing: tower instability
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R021,IMPACT,5.0,0.4,GEO_SCATTER,first_responders,ems,PCT,16,0,75,240,720,CITY_CENTER,0,7,Road blocks / comms slow EMS
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R022,IMPACT,5.3,0.4,GEO_SCATTER,first_responders,fire_station,PCT,12,0,80,240,720,CITY_CENTER,0,6,Fire constrained
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R023,IMPACT,5.6,0.4,GEO_SCATTER,first_responders,police,PCT,10,0,82,240,720,CITY_CENTER,0,6,Police constrained
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R024,REPAIR,20.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,34,0,75,120,360,CITY_CENTER,0,8,Wave1: LV mass restoration
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R025,REPAIR,22.0,0.4,GEO_SCATTER,electricity,mv_node,PCT,26,0,75,180,540,CITY_CENTER,0,8,Wave1: MV restoration
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R026,REPAIR,24.0,0.4,GEO_SCATTER,electricity,transformer,PCT,14,0,70,240,720,CITY_CENTER,0,7,Wave1: transformer repairs
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R027,REPAIR,28.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,12,0,85,240,720,CITY_CENTER,0,6,Wave1: fiber restored
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R028,REPAIR,30.0,0.4,GEO_SCATTER,communication,cell_tower,PCT,14,0,85,180,540,CITY_CENTER,0,6,Wave1: towers restored
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R029,REPAIR,40.0,0.4,GEO_RADIUS,electricity,substation,PCT,14,0,60,720,2160,FLOOD_POCKET,5,5,Wave2: flooded substations recover
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R030,REPAIR,45.0,0.4,GEO_RADIUS,water,pump_station,PCT,16,0,80,360,1080,FLOOD_POCKET,5,4,Wave2: pumps recover
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R031,REPAIR,50.0,0.4,GEO_RADIUS,gas,regulator,PCT,12,0,85,360,1080,FLOOD_POCKET,5,4,Wave2: gas recover
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R032,REPAIR,70.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,92,120,300,CITY_CENTER,0,3,Late: remaining LV
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R033,REPAIR,85.0,0.4,GEO_SCATTER,first_responders,ems,PCT,16,0,92,240,720,CITY_CENTER,0,2,EMS normalizes
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R034,IMPACT,4.5,0.4,GEO_SCATTER,water,reservoir,PCT,10,0,70,480,1440,CITY_CENTER,0,5,Storm runoff: reservoir constraints
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R035,IMPACT,4.8,0.4,GEO_SCATTER,water,treatment,PCT,8,0,75,720,1440,CITY_CENTER,0,5,Treatment constrained by turbidity/power
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R036,IMPACT,6.8,0.4,GEO_SCATTER,communication,exchange,PCT,6,0,60,360,960,CITY_CENTER,0,5,Exchange overload / power issues
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R037,REPAIR,32.0,0.4,GEO_SCATTER,water,treatment,PCT,8,0,85,720,1440,CITY_CENTER,0,4,Treatment stabilized
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R038,REPAIR,34.0,0.4,GEO_SCATTER,water,reservoir,PCT,10,0,88,480,1440,CITY_CENTER,0,4,Reservoir stabilized
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R039,REPAIR,60.0,0.4,GEO_SCATTER,communication,exchange,PCT,6,0,90,360,960,CITY_CENTER,0,3,Exchange restored
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R040,REPAIR,92.0,0.4,GEO_SCATTER,first_responders,police,PCT,10,0,92,240,720,CITY_CENTER,0,2,Police normalizes
+SS_020,Severe Storm – Wind + Flood Pockets,SEVERE_STORM,SS_020_R041,REPAIR,93.0,0.4,GEO_SCATTER,first_responders,fire_station,PCT,12,0,92,240,720,CITY_CENTER,0,2,Fire normalizes

@@ -1,0 +1,36 @@
+template_id,template_name,hazard_type,rule_id,event_kind,time_pct,time_jitter_pct,selection_scope,sector,subtype,target_mode,target_value,allow_reuse_asset,performance_pct,repair_time_min,repair_time_max,geo_anchor,geo_param_1_km,priority,notes
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R001,IMPACT,1.0,0.4,GEO_SCATTER,first_responders,ems,PCT,28,0,85,720,1440,CITY_CENTER,0,10,Workforce shortage: EMS capacity down
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R002,IMPACT,1.2,0.4,GEO_SCATTER,first_responders,fire_station,PCT,22,0,88,720,1440,CITY_CENTER,0,9,Workforce shortage: Fire down
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R003,IMPACT,1.4,0.4,GEO_SCATTER,first_responders,police,PCT,18,0,90,720,1440,CITY_CENTER,0,9,Workforce shortage: Police down
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R004,IMPACT,2.0,0.4,GEO_SCATTER,electricity,substation,PCT,40,0,100,1440,2880,CITY_CENTER,0,8,Repair time inflation (no immediate performance drop)
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R005,IMPACT,2.1,0.4,GEO_SCATTER,electricity,transformer,PCT,45,0,100,960,1920,CITY_CENTER,0,8,Repair time inflation (no immediate performance drop)
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R006,IMPACT,2.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,55,0,100,480,1440,CITY_CENTER,0,8,Repair time inflation (no immediate performance drop)
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R007,IMPACT,2.3,0.4,GEO_SCATTER,electricity,lv_node,PCT,60,0,100,360,1080,CITY_CENTER,0,8,Repair time inflation (no immediate performance drop)
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R008,IMPACT,2.4,0.4,GEO_SCATTER,water,pump_station,PCT,45,0,100,720,2160,CITY_CENTER,0,8,Repair time inflation (no immediate performance drop)
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R009,IMPACT,2.5,0.4,GEO_SCATTER,water,treatment,PCT,35,0,100,1440,4320,CITY_CENTER,0,8,Repair time inflation (no immediate performance drop)
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R010,IMPACT,2.6,0.4,GEO_SCATTER,gas,regulator,PCT,40,0,100,720,2160,CITY_CENTER,0,8,Repair time inflation (no immediate performance drop)
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R011,IMPACT,2.7,0.4,GEO_SCATTER,communication,exchange,PCT,30,0,100,720,2160,CITY_CENTER,0,8,Repair time inflation (no immediate performance drop)
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R012,IMPACT,2.8,0.4,GEO_SCATTER,communication,fiber_node,PCT,35,0,100,480,1440,CITY_CENTER,0,8,Repair time inflation (no immediate performance drop)
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R013,IMPACT,15.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,60,360,1080,CITY_CENTER,0,6,Backlog: LV failures increase
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R014,IMPACT,15.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,55,480,1440,CITY_CENTER,0,6,Backlog: MV failures increase
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R015,IMPACT,15.4,0.4,GEO_SCATTER,water,pump_station,PCT,6,0,70,720,2160,CITY_CENTER,0,5,Backlog: pump failures increase
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R016,IMPACT,20.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,60,360,1080,CITY_CENTER,0,6,Backlog: LV failures increase
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R017,IMPACT,20.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,55,480,1440,CITY_CENTER,0,6,Backlog: MV failures increase
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R018,IMPACT,20.4,0.4,GEO_SCATTER,water,pump_station,PCT,6,0,70,720,2160,CITY_CENTER,0,5,Backlog: pump failures increase
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R019,IMPACT,25.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,10,0,60,360,1080,CITY_CENTER,0,6,Backlog: LV failures increase
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R020,IMPACT,25.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,8,0,55,480,1440,CITY_CENTER,0,6,Backlog: MV failures increase
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R021,IMPACT,25.4,0.4,GEO_SCATTER,water,pump_station,PCT,6,0,70,720,2160,CITY_CENTER,0,5,Backlog: pump failures increase
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R022,REPAIR,50.0,0.4,GEO_SCATTER,first_responders,ems,PCT,28,0,92,720,1440,CITY_CENTER,0,5,Adaptation: EMS improves
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R023,REPAIR,55.0,0.4,GEO_SCATTER,first_responders,fire_station,PCT,22,0,93,720,1440,CITY_CENTER,0,4,Adaptation: Fire improves
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R024,REPAIR,60.0,0.4,GEO_SCATTER,first_responders,police,PCT,18,0,94,720,1440,CITY_CENTER,0,4,Adaptation: Police improves
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R025,REPAIR,70.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,10,0,95,480,1440,CITY_CENTER,0,3,Adaptation: IT stabilized
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R026,REPAIR,80.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,12,0,95,360,1080,CITY_CENTER,0,2,Adaptation: backlog reduced
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R027,REPAIR,45.0,0.4,GEO_SCATTER,electricity,mv_node,PCT,30,0,100,360,720,CITY_CENTER,0,5,Staffing/parts improve: repair times reduced
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R028,REPAIR,46.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,30,0,100,240,600,CITY_CENTER,0,5,Staffing/parts improve: repair times reduced
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R029,REPAIR,47.0,0.4,GEO_SCATTER,water,pump_station,PCT,25,0,100,480,1080,CITY_CENTER,0,5,Staffing/parts improve: repair times reduced
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R030,REPAIR,48.0,0.4,GEO_SCATTER,gas,regulator,PCT,20,0,100,480,1080,CITY_CENTER,0,5,Staffing/parts improve: repair times reduced
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R031,REPAIR,49.0,0.4,GEO_SCATTER,communication,exchange,PCT,15,0,100,480,1080,CITY_CENTER,0,5,Staffing/parts improve: repair times reduced
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R032,REPAIR,50.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,18,0,100,360,720,CITY_CENTER,0,5,Staffing/parts improve: repair times reduced
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R033,REPAIR,85.0,0.4,GEO_SCATTER,first_responders,ems,PCT,10,0,98,360,720,CITY_CENTER,0,2,Vaccination: EMS near normal
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R034,REPAIR,86.0,0.4,GEO_SCATTER,first_responders,fire_station,PCT,10,0,98,360,720,CITY_CENTER,0,2,Vaccination: Fire near normal
+PD_040,Pandemic – Workforce & Repair Constraints,PANDEMIC,PD_040_R035,REPAIR,87.0,0.4,GEO_SCATTER,first_responders,police,PCT,10,0,98,360,720,CITY_CENTER,0,2,Vaccination: Police near normal

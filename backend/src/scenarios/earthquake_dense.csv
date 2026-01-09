@@ -1,0 +1,69 @@
+template_id,template_name,hazard_type,rule_id,event_kind,time_pct,time_jitter_pct,selection_scope,sector,subtype,target_mode,target_value,allow_reuse_asset,performance_pct,repair_time_min,repair_time_max,geo_anchor,geo_param_1_km,priority,notes
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R001,IMPACT,0.8,0.4,GEO_RADIUS,electricity,substation,PCT,22,0,5,720,1440,EPICENTER,6,10,Initial shock near epicenter (substation)
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R002,IMPACT,0.8,0.4,GEO_RADIUS,electricity,transformer,PCT,30,0,15,720,1440,EPICENTER,8,10,Initial shock near epicenter (transformer)
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R003,IMPACT,0.8,0.4,GEO_RADIUS,electricity,mv_node,PCT,34,0,35,720,1440,EPICENTER,10,10,Initial shock near epicenter (mv_node)
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R004,IMPACT,0.8,0.4,GEO_RADIUS,electricity,lv_node,PCT,38,0,45,720,1440,EPICENTER,12,10,Initial shock near epicenter (lv_node)
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R005,IMPACT,1.2,0.4,GEO_RADIUS,communication,exchange,PCT,12,0,40,480,1440,EPICENTER,10,9,Exchange sites impacted by power + shaking
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R006,IMPACT,1.4,0.4,GEO_RADIUS,communication,fiber_node,PCT,14,0,50,360,1080,EPICENTER,12,9,Fiber nodes damaged / power loss
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R007,IMPACT,1.6,0.4,GEO_RADIUS,communication,cell_tower,PCT,16,0,55,240,720,EPICENTER,14,8,Cell towers degraded
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R008,IMPACT,1.8,0.4,GEO_RADIUS,water,pump_station,PCT,16,0,45,360,1080,EPICENTER,12,8,Pumps disrupted
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R009,IMPACT,2.0,0.4,GEO_RADIUS,water,treatment,PCT,12,0,55,720,2160,EPICENTER,10,7,Treatment constrained
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R010,IMPACT,2.2,0.4,GEO_RADIUS,gas,regulator,PCT,14,0,50,360,1080,EPICENTER,10,7,Gas regulation affected
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R011,IMPACT,2.4,0.4,GEO_RADIUS,gas,pipeline_node,PCT,12,0,60,360,1080,EPICENTER,12,6,Pipeline nodes shutoffs
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R012,IMPACT,3.0,0.4,GEO_SCATTER,electricity,mv_node,PCT,10,0,50,180,420,CITY_CENTER,0,7,Secondary MV trips citywide
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R013,IMPACT,3.1,0.4,GEO_SCATTER,electricity,lv_node,PCT,12,0,60,120,300,CITY_CENTER,0,7,Secondary LV trips citywide
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R014,IMPACT,3.4,0.4,GEO_SCATTER,electricity,mv_node,PCT,10,0,50,180,420,CITY_CENTER,0,7,Secondary MV trips citywide
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R015,IMPACT,3.5,0.4,GEO_SCATTER,electricity,lv_node,PCT,12,0,60,120,300,CITY_CENTER,0,7,Secondary LV trips citywide
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R016,IMPACT,3.8,0.4,GEO_SCATTER,electricity,mv_node,PCT,10,0,50,180,420,CITY_CENTER,0,7,Secondary MV trips citywide
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R017,IMPACT,3.9,0.4,GEO_SCATTER,electricity,lv_node,PCT,12,0,60,120,300,CITY_CENTER,0,7,Secondary LV trips citywide
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R018,IMPACT,4.2,0.4,GEO_SCATTER,electricity,mv_node,PCT,10,0,50,180,420,CITY_CENTER,0,7,Secondary MV trips citywide
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R019,IMPACT,4.3,0.4,GEO_SCATTER,electricity,lv_node,PCT,12,0,60,120,300,CITY_CENTER,0,7,Secondary LV trips citywide
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R020,IMPACT,8.0,0.4,GEO_RADIUS,electricity,substation,PCT,10,0,0,720,1440,EPICENTER,8,8,Aftershock causes substation relapses (km 8)
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R021,IMPACT,8.4,0.4,GEO_RADIUS,electricity,transformer,PCT,12,0,10,360,960,EPICENTER,10,8,Aftershock transformer relapses
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R022,IMPACT,8.8,0.4,GEO_RADIUS,electricity,mv_node,PCT,14,0,30,180,420,EPICENTER,12,7,Aftershock MV relapses
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R023,IMPACT,18.0,0.4,GEO_RADIUS,electricity,substation,PCT,10,0,0,720,1440,EPICENTER,10,8,Aftershock causes substation relapses (km 10)
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R024,IMPACT,18.4,0.4,GEO_RADIUS,electricity,transformer,PCT,12,0,10,360,960,EPICENTER,12,8,Aftershock transformer relapses
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R025,IMPACT,18.8,0.4,GEO_RADIUS,electricity,mv_node,PCT,14,0,30,180,420,EPICENTER,14,7,Aftershock MV relapses
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R026,IMPACT,28.0,0.4,GEO_RADIUS,electricity,substation,PCT,10,0,0,720,1440,EPICENTER,12,8,Aftershock causes substation relapses (km 12)
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R027,IMPACT,28.4,0.4,GEO_RADIUS,electricity,transformer,PCT,12,0,10,360,960,EPICENTER,14,8,Aftershock transformer relapses
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R028,IMPACT,28.8,0.4,GEO_RADIUS,electricity,mv_node,PCT,14,0,30,180,420,EPICENTER,16,7,Aftershock MV relapses
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R029,IMPACT,4.8,0.4,GEO_SCATTER,first_responders,ems,PCT,18,0,70,240,720,CITY_CENTER,0,6,EMS constrained (access/comms overload)
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R030,IMPACT,5.2,0.4,GEO_SCATTER,first_responders,fire_station,PCT,14,0,75,240,720,CITY_CENTER,0,6,Fire stations constrained
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R031,IMPACT,5.6,0.4,GEO_SCATTER,first_responders,police,PCT,12,0,80,240,720,CITY_CENTER,0,5,Police constrained
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R032,REPAIR,6.5,0.4,GRAPH_CENTRALITY,electricity,substation,PCT,2,0,55,360,720,CITY_CENTER,0,8,Triage: stabilize central substations
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R033,REPAIR,6.8,0.4,GRAPH_CENTRALITY,electricity,transformer,PCT,4,0,60,240,480,CITY_CENTER,0,7,Triage: restore key transformers
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R034,REPAIR,7.2,0.4,GEO_SCATTER,electricity,lv_node,PCT,20,0,75,90,180,CITY_CENTER,0,7,Triage: LV partial restoration
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R035,REPAIR,7.6,0.4,GEO_SCATTER,electricity,mv_node,PCT,18,0,70,120,240,CITY_CENTER,0,7,Triage: MV partial restoration
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R036,REPAIR,32.0,0.4,GEO_RADIUS,electricity,substation,PCT,18,0,65,720,1440,EPICENTER,10,6,Wave2: substation repairs
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R037,REPAIR,33.0,0.4,GEO_RADIUS,electricity,transformer,PCT,26,0,75,360,960,EPICENTER,12,6,Wave2: transformer swaps
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R038,REPAIR,34.0,0.4,GEO_RADIUS,electricity,mv_node,PCT,28,0,85,180,420,EPICENTER,14,5,Wave2: MV restoration
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R039,REPAIR,35.0,0.4,GEO_RADIUS,electricity,lv_node,PCT,30,0,90,120,300,EPICENTER,16,5,Wave2: LV restoration
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R040,REPAIR,36.0,0.4,GEO_SCATTER,communication,cell_tower,PCT,16,0,80,180,540,CITY_CENTER,0,5,Wave2: comms field fixes
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R041,REPAIR,37.0,0.4,GEO_SCATTER,water,pump_station,PCT,14,0,75,360,720,CITY_CENTER,0,4,Wave2: pumps repaired
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R042,REPAIR,60.0,0.4,GEO_SCATTER,electricity,lv_node,PCT,14,0,95,120,300,CITY_CENTER,0,3,Late: remaining LV
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R043,REPAIR,68.0,0.4,GEO_SCATTER,electricity,mv_node,PCT,12,0,95,180,420,CITY_CENTER,0,3,Late: remaining MV
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R044,REPAIR,78.0,0.4,GEO_SCATTER,electricity,transformer,PCT,10,0,92,240,600,CITY_CENTER,0,2,Late: remaining transformers
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R045,REPAIR,88.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,12,0,90,240,720,CITY_CENTER,0,2,Late: fiber stabilization
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R046,REPAIR,92.0,0.4,GEO_SCATTER,communication,exchange,PCT,10,0,92,360,960,CITY_CENTER,0,1,Late: exchanges restore
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R047,IMPACT,2.8,0.4,GEO_SCATTER,communication,cell_tower,PCT,6,0,50,180,540,CITY_CENTER,0,6,Citywide comms degradation bursts
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R048,IMPACT,3.0,0.4,GEO_SCATTER,communication,fiber_node,PCT,6,0,55,240,720,CITY_CENTER,0,6,Citywide fiber instability
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R049,IMPACT,3.1999999999999997,0.4,GEO_SCATTER,water,pump_station,PCT,6,0,60,360,720,CITY_CENTER,0,5,Water pumping brownouts
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R050,IMPACT,3.6,0.4,GEO_SCATTER,communication,cell_tower,PCT,6,0,50,180,540,CITY_CENTER,0,6,Citywide comms degradation bursts
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R051,IMPACT,3.8000000000000003,0.4,GEO_SCATTER,communication,fiber_node,PCT,6,0,55,240,720,CITY_CENTER,0,6,Citywide fiber instability
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R052,IMPACT,4.0,0.4,GEO_SCATTER,water,pump_station,PCT,6,0,60,360,720,CITY_CENTER,0,5,Water pumping brownouts
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R053,IMPACT,4.4,0.4,GEO_SCATTER,communication,cell_tower,PCT,6,0,50,180,540,CITY_CENTER,0,6,Citywide comms degradation bursts
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R054,IMPACT,4.6000000000000005,0.4,GEO_SCATTER,communication,fiber_node,PCT,6,0,55,240,720,CITY_CENTER,0,6,Citywide fiber instability
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R055,IMPACT,4.800000000000001,0.4,GEO_SCATTER,water,pump_station,PCT,6,0,60,360,720,CITY_CENTER,0,5,Water pumping brownouts
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R056,IMPACT,41.0,0.4,GEO_SCATTER,electricity,mv_node,PCT,6,0,40,180,420,CITY_CENTER,0,4,Relapse: MV repeat trips
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R057,IMPACT,41.2,0.4,GEO_SCATTER,electricity,lv_node,PCT,6,0,50,120,300,CITY_CENTER,0,4,Relapse: LV repeat trips
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R058,IMPACT,42.5,0.4,GEO_SCATTER,electricity,mv_node,PCT,6,0,40,180,420,CITY_CENTER,0,4,Relapse: MV repeat trips
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R059,IMPACT,42.7,0.4,GEO_SCATTER,electricity,lv_node,PCT,6,0,50,120,300,CITY_CENTER,0,4,Relapse: LV repeat trips
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R060,IMPACT,44.0,0.4,GEO_SCATTER,electricity,mv_node,PCT,6,0,40,180,420,CITY_CENTER,0,4,Relapse: MV repeat trips
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R061,IMPACT,44.2,0.4,GEO_SCATTER,electricity,lv_node,PCT,6,0,50,120,300,CITY_CENTER,0,4,Relapse: LV repeat trips
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R062,REPAIR,48.0,0.4,GEO_SCATTER,gas,regulator,PCT,12,0,80,360,720,CITY_CENTER,0,4,Gas regulators serviced
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R063,REPAIR,52.0,0.4,GEO_SCATTER,gas,pipeline_node,PCT,10,0,85,360,720,CITY_CENTER,0,3,Pipeline nodes restored
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R064,REPAIR,55.0,0.4,GEO_SCATTER,water,treatment,PCT,10,0,80,720,1440,CITY_CENTER,0,3,Treatment stabilization
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R065,REPAIR,72.0,0.4,GEO_SCATTER,water,reservoir,PCT,8,0,90,480,1440,CITY_CENTER,0,2,Reservoir operations normalize
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R066,REPAIR,40.0,0.4,GEO_SCATTER,first_responders,ems,PCT,18,0,85,240,720,CITY_CENTER,0,4,EMS capacity improves with comms/power
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R067,REPAIR,65.0,0.4,GEO_SCATTER,first_responders,fire_station,PCT,14,0,90,240,720,CITY_CENTER,0,3,Fire stations return to normal
+EQ_030,Earthquake – Dense Urban Multi-wave,EARTHQUAKE,EQ_030_R068,REPAIR,70.0,0.4,GEO_SCATTER,first_responders,police,PCT,12,0,92,240,720,CITY_CENTER,0,2,Police normalizes

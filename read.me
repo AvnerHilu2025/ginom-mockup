@@ -29,3 +29,24 @@ Git comands
 git add .
 git commit -m "Your commit message"
 git push -u origin main
+
+
+הגדרות תרחישים : 
+
+כל שורה ב־CSV היא Rule שמייצר אירועים בזמן בניית תרחיש “מופע” (Scenario Instance) לעיר מסוימת.
+עמודות חשובות (כבר קיימות בכל הקבצים):
+time_pct – זמן האירוע כאחוז מהמשך התרחיש (0–100)
+event_kind – IMPACT או REPAIR
+selection_scope – איך לבחור נכסים:
+GEO_RADIUS – בתוך רדיוס סביב עוגן (למשל EPICENTER / FLOOD_POCKET / FIRE_FRONT)
+GEO_SCATTER – פגיעה “מפוזרת” בעיר
+GRAPH_CENTRALITY – לבחור נכסים מרכזיים בגרף התלויות (בהמשך, כשה־Builder ימומש)
+sector/subtype – התאמת הנכסים לפי המודל שלך (כבר תואם למה שמופיע ב־DB בדמו: electricity/communication/water/gas/first_responders)
+target_mode + target_value – כמה נכסים להשפיע:
+PCT – אחוז מהנכסים המתאימים בעיר
+performance_pct – Set-To (0–100), לפי מה שאישרת
+repair_time_min/max – מטא־דאטה שמאפשר לך בהמשך להכניס לוגיקת “צוותים/תיקון”
+כל אחד מהתרחישים כולל הרבה יותר מאירוע אחד:
+גלי פגיעה (initial shock / secondary / persistence / relapse)
+גלי תיקון (triage / wave2 / late completion)
+פגיעה רב־סקטורית (לא רק חשמל)

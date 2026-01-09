@@ -8,6 +8,7 @@ import { ollamaChat } from "./ollama.js";
 import { systemPrompt, userPrompt } from "./prompts.js";
 import { ragSearch } from "./rag.js";
 import { seedCity, rollbackSeedRun, getLatestSeedRunIdForCity } from "./seed_city.js";
+import { loadScenarioTemplatesAuto } from "./scenario_loader.js";
 
 const PORT = Number(process.env.PORT || 3000);
 const DB_PATH = process.env.DB_PATH || "./demo.db";
@@ -18,6 +19,9 @@ app.use(express.json({ limit: "2mb" }));
 
 const db = openDb(DB_PATH);
 await initSchema(db, path.resolve("src/schema.sql"));
+loadScenarioTemplatesAuto(DB_PATH);
+
+
 
 app.get("/health", (req, res) => res.json({ ok: true }));
 
@@ -221,6 +225,174 @@ async function countAssetsInCity(db, city) {
 }
 
 const ALL_SECTORS = ["electricity", "water", "gas", "communication", "first_responders"];
+// =========================
+// Scenario Templates helpers
+// =========================
+
+function fmtPct(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return String(x);
+  return n.toFixed(n < 10 ? 1 : 0);
+}
+
+async function fetchTemplatesSummary(db) {
+  const rows = await all(
+    db,
+    `
+    SELECT
+      t.template_id,
+      t.template_name,
+      t.hazard_type,
+      COUNT(r.rule_id) AS rules_count,
+      SUM(CASE WHEN r.event_kind='IMPACT' THEN 1 ELSE 0 END) AS impacts,
+      SUM(CASE WHEN r.event_kind='REPAIR' THEN 1 ELSE 0 END) AS repairs,
+      MIN(r.time_pct) AS min_time_pct,
+      MAX(r.time_pct) AS max_time_pct
+    FROM scenario_templates t
+    JOIN scenario_template_rules r ON r.template_id = t.template_id
+    WHERE t.is_active=1 AND r.enabled=1
+    GROUP BY t.template_id, t.template_name, t.hazard_type
+    ORDER BY rules_count DESC, t.hazard_type, t.template_id
+    `
+  );
+  return rows || [];
+}
+
+async function fetchTemplateBreakdown(db, templateId) {
+  const [header] = await all(
+    db,
+    `
+    SELECT
+      t.template_id,
+      t.template_name,
+      t.hazard_type,
+      COUNT(r.rule_id) AS rules_count,
+      SUM(CASE WHEN r.event_kind='IMPACT' THEN 1 ELSE 0 END) AS impacts,
+      SUM(CASE WHEN r.event_kind='REPAIR' THEN 1 ELSE 0 END) AS repairs,
+      MIN(r.time_pct) AS min_time_pct,
+      MAX(r.time_pct) AS max_time_pct
+    FROM scenario_templates t
+    JOIN scenario_template_rules r ON r.template_id = t.template_id
+    WHERE t.template_id = ? AND t.is_active=1 AND r.enabled=1
+    GROUP BY t.template_id, t.template_name, t.hazard_type
+    `,
+    [templateId]
+  );
+
+  const sectorRows = await all(
+    db,
+    `
+    SELECT sector, subtype, COUNT(*) AS cnt
+    FROM scenario_template_rules
+    WHERE template_id = ? AND enabled=1
+    GROUP BY sector, subtype
+    ORDER BY cnt DESC, sector, subtype
+    `,
+    [templateId]
+  );
+
+  const scopeRows = await all(
+    db,
+    `
+    SELECT selection_scope, COUNT(*) AS cnt
+    FROM scenario_template_rules
+    WHERE template_id = ? AND enabled=1
+    GROUP BY selection_scope
+    ORDER BY cnt DESC
+    `,
+    [templateId]
+  );
+
+  return { header: header || null, sectorRows: sectorRows || [], scopeRows: scopeRows || [] };
+}
+
+async function fetchTemplateTimelineBuckets(db, templateId, bucketSizePct = 5) {
+  const bucket = Math.max(1, Math.min(20, Number(bucketSizePct || 5)));
+
+  const rows = await all(
+    db,
+    `
+    SELECT
+      CAST(time_pct / ? AS INT) * ? AS bucket_start,
+      CAST(time_pct / ? AS INT) * ? + ? AS bucket_end,
+      COUNT(*) AS rules,
+      SUM(CASE WHEN event_kind='IMPACT' THEN 1 ELSE 0 END) AS impacts,
+      SUM(CASE WHEN event_kind='REPAIR' THEN 1 ELSE 0 END) AS repairs
+    FROM scenario_template_rules
+    WHERE template_id = ? AND enabled=1
+    GROUP BY bucket_start, bucket_end
+    ORDER BY bucket_start
+    `,
+    [bucket, bucket, bucket, bucket, bucket, templateId]
+  );
+
+  return rows || [];
+}
+
+function renderTemplatesSummaryText(rows) {
+  if (!rows.length) return "No scenario templates found in the database.";
+  const lines = [];
+  lines.push("Scenario templates loaded:");
+  lines.push("");
+
+  for (const r of rows) {
+    lines.push(
+      `• ${r.template_id} — ${r.template_name} [${r.hazard_type}] | ` +
+      `${r.rules_count} rules (IMPACT ${r.impacts}, REPAIR ${r.repairs}) | ` +
+      `Time ${fmtPct(r.min_time_pct)}–${fmtPct(r.max_time_pct)}%`
+    );
+  }
+
+  lines.push("");
+  lines.push("Commands:");
+  lines.push("• template <TEMPLATE_ID>   (e.g., template EQ_030)");
+  lines.push("• timeline <TEMPLATE_ID>  (e.g., timeline EQ_030)");
+  return lines.join("\n");
+}
+
+function renderTemplateDetailsText({ header, sectorRows, scopeRows }) {
+  if (!header) return "Template not found (or inactive).";
+
+  const lines = [];
+  lines.push(`${header.template_id} — ${header.template_name}`);
+  lines.push(`Hazard: ${header.hazard_type}`);
+  lines.push(
+    `Rules: ${header.rules_count} (IMPACT ${header.impacts}, REPAIR ${header.repairs}) | ` +
+    `Time ${fmtPct(header.min_time_pct)}–${fmtPct(header.max_time_pct)}%`
+  );
+  lines.push("");
+
+  lines.push("Top sector/subtype coverage:");
+  for (const r of sectorRows.slice(0, 10)) {
+    lines.push(`• ${r.sector} / ${r.subtype}: ${r.cnt}`);
+  }
+  if (sectorRows.length > 10) lines.push(`… +${sectorRows.length - 10} more`);
+
+  lines.push("");
+  lines.push("Selection scopes:");
+  for (const r of scopeRows) {
+    lines.push(`• ${r.selection_scope}: ${r.cnt}`);
+  }
+
+  lines.push("");
+  lines.push("Commands:");
+  lines.push(`• timeline ${header.template_id}`);
+  return lines.join("\n");
+}
+
+function renderTimelineText(templateId, rows, bucketSizePct = 5) {
+  if (!rows.length) return `No timeline data for ${templateId}.`;
+  const lines = [];
+  lines.push(`Timeline for ${templateId} (bucket = ${bucketSizePct}%):`);
+  lines.push("");
+  for (const r of rows) {
+    lines.push(
+      `• ${r.bucket_start}–${r.bucket_end}%: ${r.rules} rules ` +
+      `(IMPACT ${r.impacts}, REPAIR ${r.repairs})`
+    );
+  }
+  return lines.join("\n");
+}
 
 /**
  * POST /api/chat
@@ -262,9 +434,46 @@ app.post("/api/chat", async (req, res) => {
       return Array.from(new Set(found));
     }
 
-        // ---------- City intent: user typed a city name (e.g., "London") ----------
+        
     
+    // =========================
+    // Scenario templates commands (must come BEFORE looksLikeCity)
+    // =========================
+    if (/^(templates|scenario templates)$/i.test(message.trim())) {
+      const rows = await fetchTemplatesSummary(db);
+      return res.json({
+        assistant_message: renderTemplatesSummaryText(rows),
+        requires_confirmation: false,
+        actions: [],
+        questions: [],
+      });
+    }
 
+    const mTemplate = message.trim().match(/^template\s+([A-Za-z0-9_-]+)$/i);
+    if (mTemplate) {
+      const templateId = mTemplate[1].toUpperCase();
+      const data = await fetchTemplateBreakdown(db, templateId);
+      return res.json({
+        assistant_message: renderTemplateDetailsText(data),
+        requires_confirmation: false,
+        actions: [],
+        questions: [],
+      });
+    }
+
+    const mTimeline = message.trim().match(/^timeline\s+([A-Za-z0-9_-]+)(?:\s+(\d+))?$/i);
+    if (mTimeline) {
+      const templateId = mTimeline[1].toUpperCase();
+      const bucket = mTimeline[2] ? Number(mTimeline[2]) : 5;
+      const rows = await fetchTemplateTimelineBuckets(db, templateId, bucket);
+      return res.json({
+        assistant_message: renderTimelineText(templateId, rows, bucket),
+        requires_confirmation: false,
+        actions: [],
+        questions: [],
+      });
+    }
+// ---------- City intent: user typed a city name (e.g., "London") ----------
     const looksLikeCity =
       /^[a-zA-Z\s.'-]{2,}$/.test(text) &&
       !text.includes("show") &&
