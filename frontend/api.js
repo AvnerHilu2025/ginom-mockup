@@ -111,3 +111,27 @@ export async function fetchDependenciesGraph() {
   }
   return res.json();
 }
+
+
+// =========================
+// Simulation Run API (Phase 2)
+// =========================
+export async function apiSimState(sim_run_id) {
+  const url = `${DEMO_BACKEND_BASE}/api/sim/state?sim_run_id=${encodeURIComponent(sim_run_id)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status} from ${url}. ${text}`);
+  }
+  return res.json();
+}
+
+export async function apiSimTick(sim_run_id, tick_index) {
+  const url = `${DEMO_BACKEND_BASE}/api/sim/tick?sim_run_id=${encodeURIComponent(sim_run_id)}&tick_index=${encodeURIComponent(String(tick_index))}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`HTTP ${res.status} from ${url}. ${text}`);
+  }
+  return res.json();
+}

@@ -1,3 +1,4 @@
+/// CHANGE STARTER ...........
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
@@ -23,9 +24,262 @@ const db = openDb(DB_PATH);
 await initSchema(db, path.resolve("src/schema.sql"));
 loadScenarioTemplatesAuto(DB_PATH);
 
+////////////////////////////////////////////
 
+// ============================================================
+// Simulation Runs (Phase 2) - In-memory (sqlite3 async version)
+// ============================================================
+
+const SIM_RUNS = new Map(); // sim_run_id -> run object
+
+function makeSimRunId() {
+  return `sim_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+function clamp(n, a, b) {
+  return Math.max(a, Math.min(b, n));
+}
+
+function perfPctToStatus(perfPct) {
+  const p = clamp(Number(perfPct ?? 100), 0, 100);
+  if (p >= 100) return "RECOVERED";
+  if (p >= 50) return "DEGRADED";
+  return "FAILED";
+}
+
+function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/**
+ * Creates a simulation run shell, then computes ticks asynchronously.
+ * IMPORTANT: This version matches your sqlite3 Database + schema.sql.
+ */
+async function startSimulationRun(db, scenario_instance_id) {
+  // 1) Load scenario instance
+  const inst = await get(
+    db,
+    `
+    SELECT
+      id,
+      city,
+      scenario,
+      duration_hours,
+      tick_minutes
+    FROM scenario_instances
+    WHERE id = ?
+  `,
+    [String(scenario_instance_id)]
+  );
+
+  if (!inst) {
+    throw new Error(`scenario_instance_id not found: ${scenario_instance_id}`);
+  }
+
+  const durationHours = Number(inst.duration_hours || 0);
+  const tickMinutes = Math.max(1, Number(inst.tick_minutes || 10));
+  const totalMinutes = Math.max(0, durationHours * 60);
+  const totalTicks = Math.max(1, Math.floor(totalMinutes / tickMinutes));
+
+  // 2) Load assets (city-scoped)
+  const assets = await all(
+    db,
+    `
+    SELECT id, name, sector, subtype, criticality, lat, lng
+    FROM assets
+    WHERE city = ?
+  `,
+    [String(inst.city)]
+  );
+
+  // 3) Load events for this instance
+  // schema.sql: scenario_events(instance_id, tick_index, asset_id, performance_pct, ...)
+  const events = await all(
+    db,
+    `
+    SELECT tick_index, asset_id, performance_pct, event_kind
+    FROM scenario_events
+    WHERE instance_id = ?
+    ORDER BY tick_index ASC
+  `,
+    [String(scenario_instance_id)]
+  );
+
+  // Index events by tick
+  const eventsByTick = new Map();
+  for (const ev of events) {
+    const t = Math.max(0, Math.trunc(Number(ev.tick_index || 0)));
+    if (!eventsByTick.has(t)) eventsByTick.set(t, []);
+    eventsByTick.get(t).push({
+      asset_id: String(ev.asset_id),
+      performance_pct: clamp(Number(ev.performance_pct ?? 100), 0, 100),
+      event_kind: String(ev.event_kind || ""),
+    });
+  }
+
+  const sim_run_id = makeSimRunId();
+
+  const run = {
+    sim_run_id,
+    scenario_instance_id: String(scenario_instance_id),
+    city: String(inst.city || ""),
+    tick_minutes: tickMinutes,
+    total_ticks: totalTicks,
+
+    computed_max_tick: -1,
+    done: false,
+
+    cache: new Map(), // tick_index -> payload
+
+    // State: asset_id -> performance_pct (0..100)
+    perfPctById: new Map(),
+
+    assets,
+    eventsByTick,
+  };
+
+  // Baseline: all 100%
+  for (const a of assets) run.perfPctById.set(String(a.id), 100);
+
+  SIM_RUNS.set(sim_run_id, run);
+
+  // async compute (backend continues even if UI pauses)
+  computeSimRunTicks(run).catch((err) => {
+    console.error("computeSimRunTicks failed:", err);
+    run.done = true;
+  });
+
+  return run;
+}
+
+async function computeSimRunTicks(run) {
+  // Prev status for "changed" detection (baseline)
+  const prevStatus = new Map();
+  for (const a of run.assets) {
+    const id = String(a.id);
+    const perf = Number(run.perfPctById.get(id) ?? 100);
+    prevStatus.set(id, perfPctToStatus(perf));
+  }
+
+  // Precompute sector weights (criticality)
+  const sectorWeights = {};
+  for (const a of run.assets) {
+    const sec = String(a.sector || "unknown");
+    const w = Math.max(1, Number(a.criticality || 1));
+    sectorWeights[sec] = (sectorWeights[sec] || 0) + w;
+  }
+
+  for (let t = 0; t < run.total_ticks; t++) {
+    // Apply direct events at tick t (set-to performance_pct)
+    const evs = run.eventsByTick.get(t) || [];
+    for (const ev of evs) {
+      run.perfPctById.set(ev.asset_id, clamp(ev.performance_pct, 0, 100));
+    }
+
+    // Compute changed assets + sector health
+    const assets_changed = [];
+    const sectorPerfSum = {}; // sec -> sum(perf% * weight)
+
+    for (const a of run.assets) {
+      const id = String(a.id);
+      const sec = String(a.sector || "unknown");
+      const w = Math.max(1, Number(a.criticality || 1));
+      const perf = clamp(Number(run.perfPctById.get(id) ?? 100), 0, 100);
+
+      sectorPerfSum[sec] = (sectorPerfSum[sec] || 0) + perf * w;
+
+      const status = perfPctToStatus(perf);
+      const old = prevStatus.get(id);
+      if (old !== status) {
+        assets_changed.push({ id, status });
+      }
+      prevStatus.set(id, status);
+    }
+
+    const sectors = {};
+    for (const sec of Object.keys(sectorWeights)) {
+      const wSum = sectorWeights[sec] || 1;
+      const avgPerf = (sectorPerfSum[sec] || 100 * wSum) / wSum; // 0..100
+      sectors[sec] = Math.round(clamp(avgPerf, 0, 100));
+    }
+
+    // Simple demo recommendations
+    const recommendations = [];
+    if (assets_changed.length) {
+      recommendations.push(
+        `Tick ${t + 1}: ${assets_changed.length} assets changed state. Prioritize critical repairs in affected sectors.`
+      );
+    }
+
+    const payload = {
+      sim_run_id: run.sim_run_id,
+      tick_index: t,
+      total_ticks: run.total_ticks,
+      sectors,
+      assets_changed,
+      recommendations,
+    };
+
+    run.cache.set(t, payload);
+    run.computed_max_tick = t;
+
+    // Simulate compute time (optional)
+    await sleep(40);
+  }
+
+  run.done = true;
+}
+//////////////////////////////////////////////
 
 app.get("/health", (req, res) => res.json({ ok: true }));
+/* ============================================================
+   Simulation APIs (Phase 2)
+   ============================================================ */
+
+// GET /api/sim/state?sim_run_id=...
+app.get("/api/sim/state", (req, res) => {
+  const sim_run_id = String(req.query.sim_run_id || "").trim();
+  if (!sim_run_id) return res.status(400).json({ error: "sim_run_id is required" });
+
+  const run = SIM_RUNS.get(sim_run_id);
+  if (!run) return res.status(404).json({ error: `sim_run_id not found: ${sim_run_id}` });
+
+  return res.json({
+    sim_run_id: run.sim_run_id,
+    scenario_instance_id: run.scenario_instance_id,
+    city: run.city,
+    total_ticks: run.total_ticks,
+    computed_max_tick: run.computed_max_tick,
+    done: run.done,
+  });
+});
+
+// GET /api/sim/tick?sim_run_id=...&tick_index=...
+app.get("/api/sim/tick", (req, res) => {
+  const sim_run_id = String(req.query.sim_run_id || "").trim();
+  const tick_index = Number(req.query.tick_index);
+  if (!sim_run_id) return res.status(400).json({ error: "sim_run_id is required" });
+  if (!Number.isFinite(tick_index)) return res.status(400).json({ error: "tick_index is required" });
+
+  const run = SIM_RUNS.get(sim_run_id);
+  if (!run) return res.status(404).json({ error: `sim_run_id not found: ${sim_run_id}` });
+
+  const t = Math.max(0, Math.min(run.total_ticks - 1, Math.trunc(tick_index)));
+  const payload = run.cache.get(t);
+
+  if (!payload) {
+    return res.json({
+      sim_run_id,
+      tick_index: t,
+      pending: true,
+      computed_max_tick: run.computed_max_tick,
+      done: run.done,
+    });
+  }
+
+  return res.json({ ...payload, pending: false, computed_max_tick: run.computed_max_tick, done: run.done });
+});
+
 
 /* ============================================================
    Scenario Prepare API (Option A) - create instance + events
@@ -1297,16 +1551,31 @@ app.post("/api/execute", async (req, res) => {
         }
 
 
-      if (a?.type === "SIM_RUN") {
-        // Phase 2: we will add real sim artifacts and the Recommendations screen.
-        artifacts.push({
-          type: "sim_status",
-          data: {
-            state: "running",
-            message: "Simulation execution is not implemented yet (Phase 2).",
-          },
-        });
-      }
+        if (a?.type === "SIM_RUN") {
+          const scenario_instance_id = a.payload?.scenario_instance_id;
+          if (!scenario_instance_id) {
+            artifacts.push({
+              type: "error",
+              data: { message: "SIM_RUN missing scenario_instance_id" },
+            });
+            continue;
+          }
+
+          const run = await startSimulationRun(db, String(scenario_instance_id));
+
+          artifacts.push({
+            type: "sim_status",
+            data: {
+              state: "running",
+              sim_run_id: run.sim_run_id,
+              scenario_instance_id: run.scenario_instance_id,
+              city: run.city,
+              total_ticks: run.total_ticks,
+              message: "Simulation started.",
+            },
+          });
+        }
+
     }
 
     res.json({ ok: true, artifacts });

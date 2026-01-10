@@ -9,10 +9,13 @@
  * 2) applyActionsSoft(): added MAP_SET_VIEW support (flyTo) so map centers/zooms as intended.
  * 3) On approval: apply soft actions first (e.g., MAP_SET_VIEW), then execute to get artifacts (assets/sim_status).
  */
+// Persistent status per asset (for long-lived blinking)
+
+
 
 import { SECTORS, ASSET_STATUS } from "./constants.js";
-import { apiChat, apiExecute, apiPrepareScenario, localFallbackReply } from "./api.js";
-
+import { apiChat, apiExecute, apiPrepareScenario, apiSimState, apiSimTick, localFallbackReply } from "./api.js";
+const ASSET_STATUS_BY_ID = new Map(); // assetId -> "FAILED" | "DEGRADED" | "RECOVERED"
 
 let MAP = null;
 let SIM_RUNNING = false;
@@ -21,6 +24,22 @@ let PRESENT_SECTORS = new Set();
 let CURRENT_CITY = localStorage.getItem("ginom.currentCity") || "Jerusalem";
 let depsFocusDepth = 1; // 1..5
 window.MAP_VISIBLE_ASSETS = [];
+// =========================
+// Simulation Controller (Phase 2)
+// =========================
+const SIM = {
+  sim_run_id: null,
+  scenario_instance_id: null,
+  total_ticks: 0,
+  current_tick: 0,
+  max_computed_tick: -1,
+  max_visited_tick: 0,
+  playing: false,
+  pollTimer: null,
+  cache: new Map(),
+  lastStatusById: new Map(),
+};
+
 // Local asset cache (all assets ever loaded)
 let ALL_ASSETS = [];
 // What sectors are currently visible on the map
@@ -63,7 +82,358 @@ function syncImpactTimelineFromSimcfg(simcfg) {
   startLabel.textContent = "T+0:00";
   endLabel.textContent = `T+${durationHours}:00`;
 }
+/* ============================================================
+   Timeline + Simulation Playback (Phase 2)
+   - Play/Pause is VISUAL only (backend keeps computing)
+   - User can go back to any cached tick
+   - User can go forward only up to max visited tick
+   ============================================================ */
 
+let __timelineBound = false;
+let __pulseTimer = null;
+let __pulseOn = false;
+
+function getTimelineEls() {
+  const wrap = document.querySelector(".impact-timeline");
+  if (!wrap) return null;
+
+  const range = wrap.querySelector(".timeline__range");
+  const labels = wrap.querySelectorAll(".timeline__t");
+  const startLabel = labels?.[0] || null;
+  const endLabel = labels?.[1] || null;
+
+  const btnBack = wrap.querySelector('.timeline__controls [aria-label="Back"]');
+  const btnPlay = wrap.querySelector('.timeline__controls [aria-label="Play"]');
+  const btnFwd  = wrap.querySelector('.timeline__controls [aria-label="Forward"]');
+
+  const titleEl = wrap.querySelector(".timeline__title");
+
+  return { wrap, range, startLabel, endLabel, btnBack, btnPlay, btnFwd, titleEl };
+}
+
+function setTimelinePlayIcon(isPlaying) {
+  const els = getTimelineEls();
+  if (!els?.btnPlay) return;
+
+  // Replace icon markup and re-render lucide
+  els.btnPlay.innerHTML = `<i data-lucide="${isPlaying ? "pause" : "play"}"></i>`;
+  if (window.lucide?.createIcons) {
+    window.lucide.createIcons();
+  }
+}
+
+function updateTimelineTitle() {
+  const els = getTimelineEls();
+  if (!els?.titleEl) return;
+
+  const cur = Math.max(0, Number(SIM.current_tick || 0));
+  const total = Math.max(1, Number(SIM.total_ticks || 0));
+
+  // Display as 1..N (marketing-friendly)
+  els.titleEl.textContent = `Impact Timeline • Tick ${Math.min(cur + 1, total)}/${total}`;
+}
+
+function bindTimelineControlsOnce() {
+  if (__timelineBound) return;
+  __timelineBound = true;
+
+  const els = getTimelineEls();
+  if (!els) return;
+
+  // Range scrub (user)
+  els.range?.addEventListener("input", async (e) => {
+    const t = Number(e.target?.value || 0);
+    await goToTick(t, { fromUser: true });
+  });
+
+  // Back
+  els.btnBack?.addEventListener("click", async () => {
+    const t = Math.max(0, (SIM.current_tick || 0) - 1);
+    await goToTick(t, { fromUser: true });
+  });
+
+  // Forward (only up to max visited)
+  els.btnFwd?.addEventListener("click", async () => {
+    const allowedMax = Math.max(0, Number(SIM.max_visited_tick || 0));
+    const t = Math.min(allowedMax, (SIM.current_tick || 0) + 1);
+    await goToTick(t, { fromUser: true });
+  });
+
+  // Play/Pause
+  els.btnPlay?.addEventListener("click", () => {
+    SIM.playing = !SIM.playing;
+    setTimelinePlayIcon(SIM.playing);
+    if (SIM.playing) tickLoop();
+  });
+}
+
+async function goToTick(targetTick, { fromUser = false } = {}) {
+  const els = getTimelineEls();
+  if (!els?.range) return;
+
+  const total = Math.max(1, Number(SIM.total_ticks || 0));
+  let t = Math.max(0, Math.min(total - 1, Math.trunc(Number(targetTick) || 0)));
+
+  // Rule: user cannot go forward beyond max visited
+  if (fromUser) {
+    const allowedMax = Math.max(0, Number(SIM.max_visited_tick || 0));
+    t = Math.min(t, allowedMax);
+  }
+
+  // Update UI range immediately
+  els.range.value = String(t);
+
+  // If cached – render immediately
+  if (SIM.cache.has(t)) {
+    SIM.current_tick = t;
+    renderTick(SIM.cache.get(t), { isFromCache: true });
+    return;
+  }
+
+  // Otherwise wait/poll until backend returns it
+  const payload = await waitForTick(t);
+  if (payload) {
+    SIM.cache.set(t, payload);
+    SIM.current_tick = t;
+    renderTick(payload, { isFromCache: false });
+  }
+}
+
+async function tickLoop() {
+  // Visual loop only; backend can keep computing.
+  if (!SIM.playing) return;
+  if (!SIM.sim_run_id) return;
+
+  const total = Math.max(1, Number(SIM.total_ticks || 0));
+  const cur = Math.max(0, Number(SIM.current_tick || 0));
+
+  if (cur >= total - 1) {
+    // End reached
+    SIM.playing = false;
+    setTimelinePlayIcon(false);
+    return;
+  }
+
+  const next = Math.min(total - 1, cur + 1);
+
+  // IMPORTANT:
+  // Autoplay must NOT be limited by max_visited_tick.
+  // It is the mechanism that "creates" visited ticks by progressing forward.
+  // It will wait/poll for tick availability via waitForTick() inside goToTick().
+
+  await goToTick(next, { fromUser: false });
+
+  // Keep playing if still enabled
+  if (!SIM.playing) return;
+
+  // Visual pacing (tweakable)
+  setTimeout(() => tickLoop(), 650);
+}
+
+async function waitForTick(tickIndex) {
+  // Poll backend until tick is available or timeout
+  const sim_run_id = SIM.sim_run_id;
+  if (!sim_run_id) return null;
+
+  const start = Date.now();
+  const timeoutMs = 12000;
+
+  while (Date.now() - start < timeoutMs) {
+    const resp = await apiSimTick(sim_run_id, tickIndex);
+
+    // Track computed max tick (from server)
+    if (Number.isFinite(Number(resp?.computed_max_tick))) {
+      SIM.max_computed_tick = Number(resp.computed_max_tick);
+    }
+
+    // If server says pending: wait
+    if (resp?.pending) {
+      await new Promise((r) => setTimeout(r, 350));
+      continue;
+    }
+
+    // We got a real payload
+    return resp;
+  }
+
+  console.warn("waitForTick timeout", { tickIndex, sim_run_id });
+  return null;
+}
+
+function renderTick(payload, { isFromCache = false } = {}) {
+  // payload expected:
+  // {
+  //   tick_index,
+  //   total_ticks,
+  //   sectors: { electricity: 0..100, ... },
+  //   assets_changed: [{ id, status }], // optional but recommended
+  //   recommendations: [string] // optional
+  // }
+
+  // Keep total_ticks synced
+  if (Number.isFinite(Number(payload?.total_ticks))) {
+    SIM.total_ticks = Number(payload.total_ticks);
+  }
+
+  // Sync current tick
+  if (Number.isFinite(Number(payload?.tick_index))) {
+    SIM.current_tick = Number(payload.tick_index);
+  }
+
+  // Update max visited (this is our "already happened" boundary)
+  SIM.max_visited_tick = Math.max(Number(SIM.max_visited_tick || 0), Number(SIM.current_tick || 0));
+
+  // Update UI
+  updateTimelineTitle();
+  updateSectorHealthOverlay(payload?.sectors || {});
+  applyChangedAssetsPulse(payload?.assets_changed || payload?.changed_assets || []);
+
+  // Recommendations banner (minimal: send to chat for now)
+  if (Array.isArray(payload?.recommendations) && payload.recommendations.length) {
+    // Optional: if you already have a banner function, call it here.
+    // For now: push one concise bot bubble
+    try {
+      appendBubble({
+        role: "bot",
+        text: `GINOM suggestion (tick ${SIM.current_tick + 1}/${SIM.total_ticks}): ${payload.recommendations[0]}`,
+        variant: "progress",
+      });
+    } catch (_) {}
+  }
+}
+
+/* ============================================================
+   Sector Health (right top overlay)
+   ============================================================ */
+
+function updateSectorHealthOverlay(sectors = {}) {
+  const root = document.getElementById("healthOverlay");
+  if (!root) return;
+
+  for (const card of root.querySelectorAll(".metric.card[data-sector]")) {
+    const key = card.getAttribute("data-sector");
+    if (!key) continue;
+
+    const vRaw = sectors[key];
+    const v = Math.max(0, Math.min(100, Number(vRaw ?? 100)));
+
+    const valEl = card.querySelector(".metric__value");
+    const fillEl = card.querySelector(".bar__fill");
+
+    if (valEl) valEl.textContent = `${Math.round(v)}%`;
+    if (fillEl) fillEl.style.width = `${v}%`;
+
+    // Color hint (simple)
+    if (valEl) {
+      valEl.classList.remove("metric__value--red", "metric__value--orange", "metric__value--yellow", "metric__value--green");
+      if (v <= 35) valEl.classList.add("metric__value--red");
+      else if (v <= 65) valEl.classList.add("metric__value--orange");
+      else if (v <= 85) valEl.classList.add("metric__value--yellow");
+      else valEl.classList.add("metric__value--green");
+    }
+
+    if (fillEl) {
+      fillEl.classList.remove("bar__fill--red", "bar__fill--orange", "bar__fill--yellow", "bar__fill--green");
+      if (v <= 35) fillEl.classList.add("bar__fill--red");
+      else if (v <= 65) fillEl.classList.add("bar__fill--orange");
+      else if (v <= 85) fillEl.classList.add("bar__fill--yellow");
+      else fillEl.classList.add("bar__fill--green");
+    }
+  }
+}
+
+/* ============================================================
+   Asset Pulse (visual ring around assets that changed this tick)
+   - Requires map layer "ginom-assets-pulse" to exist
+   ============================================================ */
+
+function ensureAssetPulseLayer(map) {
+  if (!map) return;
+  if (!map.getSource("ginom-assets-pulse")) {
+    map.addSource("ginom-assets-pulse", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  }
+
+  if (!map.getLayer("ginom-assets-pulse")) {
+    // Put pulse layer ABOVE the assets circle
+    const beforeId = map.getLayer("ginom-assets-label") ? "ginom-assets-label" : undefined;
+
+    map.addLayer(
+      {
+        id: "ginom-assets-pulse",
+        type: "circle",
+        source: "ginom-assets-pulse",
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 10, 12, 16, 15, 22],
+          "circle-color": [
+            "match",
+            ["get", "status"],
+            "FAILED",
+            "#DC2626",
+            "DEGRADED",
+            "#F97316",
+            "RECOVERED",
+            "#22C55E",
+            "#94A3B8",
+          ],
+          "circle-opacity": 0.0, // animated
+          "circle-stroke-color": "#FFFFFF",
+          "circle-stroke-width": 2,
+          "circle-stroke-opacity": 0.85,
+        },
+      },
+      beforeId
+    );
+  }
+
+  if (!__pulseTimer) {
+    __pulseTimer = setInterval(() => {
+      __pulseOn = !__pulseOn;
+      try {
+        map.setPaintProperty("ginom-assets-pulse", "circle-opacity", __pulseOn ? 0.55 : 0.12);
+      } catch (_) {}
+    }, 420);
+  }
+}
+
+function applyChangedAssetsPulse(changed = []) {
+  if (!MAP) return;
+  ensureAssetPulseLayer(MAP);
+
+  // 1) Update known statuses based on changed list
+  // changed: [{id, status}]
+  for (const c of changed || []) {
+    const id = String(c?.id ?? "");
+    const st = String(c?.status ?? "");
+    if (!id) continue;
+    if (!st) continue;
+    ASSET_STATUS_BY_ID.set(id, st);
+  }
+
+  // 2) Build a persistent blinking list:
+  // Blink any asset that is currently FAILED or DEGRADED.
+  const blinkFeatures = [];
+  for (const [id, st] of ASSET_STATUS_BY_ID.entries()) {
+    if (st !== "FAILED" && st !== "DEGRADED") continue;
+
+    const a = (ALL_ASSETS || []).find((x) => String(x.id) === String(id));
+    if (!a) continue;
+
+    blinkFeatures.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [Number(a.lng), Number(a.lat)] },
+      properties: { id: String(id), status: st },
+    });
+  }
+
+  // 3) Set data to pulse layer
+  const src = MAP.getSource("ginom-assets-pulse");
+  if (!src) return;
+
+  src.setData({ type: "FeatureCollection", features: blinkFeatures });
+}
 
 function loadSimcfgFromStorage() {
   try {
@@ -1008,7 +1378,32 @@ function applyExecuteArtifacts(execResult) {
     if (a?.type === "sim_status") {
       const state = String(a?.data?.state || "").toLowerCase();
       SIM_RUNNING = state === "running" || state === "started" || state === "in_progress";
+
       if (SIM_RUNNING) {
+        // init SIM controller (Phase 2)
+        if (a?.data?.sim_run_id) {
+          SIM.sim_run_id = String(a.data.sim_run_id);
+          SIM.scenario_instance_id = String(a.data.scenario_instance_id || "");
+          SIM.total_ticks = Number(a.data.total_ticks || SIM.total_ticks || 0);
+          SIM.current_tick = 0;
+          SIM.max_computed_tick = -1;
+          SIM.max_visited_tick = 0;
+          SIM.cache.clear();
+          ASSET_STATUS_BY_ID.clear();
+
+          bindTimelineControlsOnce();
+          setTimelinePlayIcon(true);
+          SIM.playing = true;
+
+          // Ensure range is at 0
+          const els = getTimelineEls();
+          if (els?.range) els.range.value = "0";
+          updateTimelineTitle();
+
+          // Start loop
+          tickLoop();
+        }
+
         const simcfg = loadSimcfgFromStorage();
         updateActiveScenarioCard(simcfg);
         syncImpactTimelineFromSimcfg(simcfg);
@@ -1016,6 +1411,7 @@ function applyExecuteArtifacts(execResult) {
 
       updateUiVisibility();
     }
+
   }
 
   // Safety: even if no artifacts, re-align UI

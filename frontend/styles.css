@@ -1111,6 +1111,7 @@ button, input { font: inherit; }
 #map {
   width: 100%;
   height: 100%;
+  position: relative;
 }
 
 /* ===== Chat "thinking" state ===== */
@@ -1586,4 +1587,55 @@ html, body {
 
 .msg {
   white-space: pre-wrap;
+}
+
+/* ============================================================
+   Simulation Run Banner (top-center over the map)
+   ============================================================ */
+.sim-run-banner {
+  position: absolute;
+  left: 50%;
+  top: 14px;
+  transform: translateX(-50%);
+  z-index: 5;
+  width: min(980px, calc(100% - 32px));
+  pointer-events: none;
+}
+
+.sim-run-banner__row {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, 0.12);
+  backdrop-filter: blur(10px);
+}
+
+.sim-run-banner__title {
+  font-weight: 900;
+  letter-spacing: 0.2px;
+  color: #0f172a;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+.sim-run-banner__meta {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.72);
+  font-weight: 700;
+}
+
+.sim-run-banner__right {
+  flex: 1;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(15, 23, 42, 0.90);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
