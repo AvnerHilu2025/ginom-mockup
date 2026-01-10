@@ -11,7 +11,8 @@
  */
 
 import { SECTORS, ASSET_STATUS } from "./constants.js";
-import { apiChat, apiExecute, localFallbackReply } from "./api.js";
+import { apiChat, apiExecute, apiPrepareScenario, localFallbackReply } from "./api.js";
+
 
 let MAP = null;
 let SIM_RUNNING = false;
@@ -140,9 +141,8 @@ function renderSimRunConfirmation(simcfg, onConfirm, onCancel) {
   confirmBtn?.addEventListener("click", () => onConfirm?.());
   cancelBtn?.addEventListener("click", () => onCancel?.());
 }
-
 // =========================
-// Scenario -> Anchor selection (Option 2 flow)
+// Scenario -> Anchor selection + Prepare (single flow)
 // =========================
 
 function requiredAnchorForScenario(scenarioKey) {
@@ -150,24 +150,24 @@ function requiredAnchorForScenario(scenarioKey) {
   if (s === "earthquake") return "EPICENTER";
   if (s === "tsunami") return "IMPACT_CENTER";
   if (s === "wildfire") return "FIRE_ORIGIN";
-  if (s === "severe_storm") return "FLOOD_POCKET";
-  return null; // cyber_attack, pandemic (and others)
+  if (s === "storm" || s === "severe_storm") return "FLOOD_POCKET";
+  if (s === "flood") return "FLOOD_POCKET";
+  return null; // cyber_attack, pandemic, etc.
 }
 
-let __anchorMarker = null;
+let __scenarioAnchorMarker = null;
 
 function showScenarioAnchorOnMap(anchorType, lat, lng) {
   if (!MAP || !window.mapboxgl) return;
 
   try {
-    // remove old marker
-    if (__anchorMarker) {
-      __anchorMarker.remove();
-      __anchorMarker = null;
+    // Remove previous marker only when selecting a new anchor
+    if (__scenarioAnchorMarker) {
+      __scenarioAnchorMarker.remove();
+      __scenarioAnchorMarker = null;
     }
 
-    // add marker
-    __anchorMarker = new mapboxgl.Marker({ color: "#EF4444" })
+    __scenarioAnchorMarker = new mapboxgl.Marker({ color: "#EF4444" })
       .setLngLat([lng, lat])
       .setPopup(
         new mapboxgl.Popup({ offset: 16 }).setHTML(
@@ -179,19 +179,18 @@ function showScenarioAnchorOnMap(anchorType, lat, lng) {
       )
       .addTo(MAP);
 
-    // optional: open popup automatically
-    __anchorMarker.getPopup().addTo(MAP);
-        // Ensure it is visible (nice UX)
+    __scenarioAnchorMarker.getPopup().addTo(MAP);
+
+    // Ensure it stays visible
     try {
       MAP.flyTo({ center: [lng, lat], zoom: Math.max(MAP.getZoom(), 11.5), speed: 0.9 });
     } catch (_) {}
-
 
   } catch (e) {
     console.warn("showScenarioAnchorOnMap failed:", e);
   }
 }
-/*
+
 async function beginAnchorPickAndPrepare(simcfg) {
   const anchorType = requiredAnchorForScenario(simcfg?.scenario);
 
@@ -211,39 +210,28 @@ async function beginAnchorPickAndPrepare(simcfg) {
     text: `Please click on the map to set the anchor: ${anchorType}.`,
   });
 
-  // One-time click
   MAP.getCanvas().style.cursor = "crosshair";
 
   MAP.once("click", async (e) => {
-    try {
-      MAP.getCanvas().style.cursor = "";
-      const lng = e.lngLat.lng;
-      const lat = e.lngLat.lat;
+    MAP.getCanvas().style.cursor = "";
 
-      // show point on map (your request #1)
-      showScenarioAnchorOnMap(anchorType, lat, lng);
+    const lng = e.lngLat.lng;
+    const lat = e.lngLat.lat;
 
-      appendBubble({
-        role: "bot",
-        text: `Anchor set: ${anchorType} at (${lat.toFixed(5)}, ${lng.toFixed(5)}). Preparing scenario...`,
-      });
+    // Show marker and KEEP it (no cleanup)
+    showScenarioAnchorOnMap(anchorType, lat, lng);
 
-      const anchors = [{ type: anchorType, lat, lng }];
-      await prepareScenarioNow(simcfg, anchors);
+    appendBubble({
+      role: "bot",
+      text: `Anchor set: ${anchorType} at (${lat.toFixed(5)}, ${lng.toFixed(5)}). Preparing scenario...`,
+    });
 
-    } catch (err) {
-      console.error("Anchor pick/prepare failed:", err);
-      appendBubble({ role: "bot", text: "Failed to prepare scenario." });
-    } finally {
-      try { MAP.getCanvas().style.cursor = ""; } catch (_) {}
-    }
+    await prepareScenarioNow(simcfg, [{ type: anchorType, lat, lng }]);
   });
 }
-*/
+
 async function prepareScenarioNow(simcfg, anchors) {
   try {
-    const { apiPrepareScenario, apiExecute } = await import("./api.js");
-
     const payload = {
       city: simcfg.city,
       scenario: simcfg.scenario,
@@ -255,12 +243,10 @@ async function prepareScenarioNow(simcfg, anchors) {
 
     const resp = await apiPrepareScenario(payload);
 
-    // Persist for later use
     localStorage.setItem("ginom.preparedScenario", JSON.stringify(resp));
     localStorage.setItem("ginom.preparedScenarioId", String(resp.scenario_instance_id || ""));
 
-    // Render bubble + buttons
-    const elWrap = appendBubble({
+    const bubble = appendBubble({
       role: "bot",
       text:
         `Scenario is prepared and ready to run.\n` +
@@ -277,12 +263,11 @@ async function prepareScenarioNow(simcfg, anchors) {
       `,
     });
 
-    const runBtn = elWrap?.querySelector?.('[data-run-prepared="1"]');
-    const showBtn = elWrap?.querySelector?.('[data-show-prepared="1"]');
+    const runBtn = bubble?.querySelector?.('[data-run-prepared="1"]');
+    const showBtn = bubble?.querySelector?.('[data-show-prepared="1"]');
 
     runBtn?.addEventListener("click", async () => {
       try {
-        // Send SIM_RUN with scenario_instance_id (execution wiring stays Phase 2 / existing)
         const exec = await apiExecute(
           "demo-1",
           [{ type: "SIM_RUN", payload: { ...simcfg, scenario_instance_id: resp.scenario_instance_id } }],
@@ -304,8 +289,7 @@ async function prepareScenarioNow(simcfg, anchors) {
       if (typeof window.__ginomSendChat === "function") {
         await window.__ginomSendChat(`show prepared ${id}`);
       } else {
-        // fallback: just print the command
-        appendBubble({ role: "bot", text: `Type this command: show prepared ${id}` });
+        appendBubble({ role: "bot", text: `Type: show prepared ${id}` });
       }
     });
 
@@ -316,7 +300,7 @@ async function prepareScenarioNow(simcfg, anchors) {
 }
 
 // =========================
-// Scenario -> Anchor requirement (Option 2 flow)
+// Scenario -> Anchor selection (Option 2 flow)
 // =========================
 /*
 function requiredAnchorForScenario(scenarioKey) {
@@ -325,9 +309,12 @@ function requiredAnchorForScenario(scenarioKey) {
   if (s === "tsunami") return "IMPACT_CENTER";
   if (s === "wildfire") return "FIRE_ORIGIN";
   if (s === "severe_storm") return "FLOOD_POCKET";
-  return null; // cyber_attack, pandemic
+  return null; // cyber_attack, pandemic (and others)
 }
 */
+let __anchorMarker = null;
+
+
 let __pendingPrepareSimcfg = null;
 let __pendingAnchorType = null;
 let __pendingAnchorMarker = null;
@@ -340,64 +327,6 @@ function clearPendingAnchor() {
   }
   __pendingAnchorMarker = null;
 }
-
-async function beginAnchorPickAndPrepare(simcfg) {
-  const map = window.__ginomMap;
-  if (!map || !window.mapboxgl) {
-    appendBubble({ role: "bot", text: "Map is not ready. Cannot pick an anchor point." });
-    return;
-  }
-
-  const anchorType = requiredAnchorForScenario(simcfg?.scenario);
-  __pendingPrepareSimcfg = simcfg;
-  __pendingAnchorType = anchorType;
-
-  // No anchor required -> prepare immediately
-  if (!anchorType) {
-    await prepareScenarioNow(simcfg, []);
-    return;
-  }
-
-  appendBubble({
-    role: "bot",
-    text: `Please click on the map to set the anchor: ${anchorType}.`,
-  });
-
-  // One-time click
-  map.getCanvas().style.cursor = "crosshair";
-
-  map.once("click", async (e) => {
-    try {
-      map.getCanvas().style.cursor = "";
-
-      const lng = e.lngLat.lng;
-      const lat = e.lngLat.lat;
-
-      // show marker
-      try {
-        if (__pendingAnchorMarker) __pendingAnchorMarker.remove();
-        __pendingAnchorMarker = new mapboxgl.Marker({ color: "#1E42AC" })
-          .setLngLat([lng, lat])
-          .addTo(map);
-      } catch (_) {}
-
-      const anchors = [{ type: anchorType, lat, lng }];
-
-      appendBubble({
-        role: "bot",
-        text: `Anchor set: ${anchorType} at (${lat.toFixed(5)}, ${lng.toFixed(5)}). Preparing scenario...`,
-      });
-
-      await prepareScenarioNow(__pendingPrepareSimcfg, anchors);
-    } catch (err) {
-      console.error("Anchor pick/prepare failed:", err);
-      appendBubble({ role: "bot", text: "Failed to prepare scenario." });
-    } finally {
-      clearPendingAnchor();
-    }
-  });
-}
-
 
 
 function ensureDependencyLayers(map) {
@@ -1653,25 +1582,6 @@ function wireSimConfigModal() {
     // NEW: Ask for confirmation in chat (do NOT run yet)
     renderSimRunConfirmation(
       simcfg,
-      /*
-      async () => {
-        // Confirmed: execute SIM_RUN
-        try {
-          const exec = await apiExecute("demo-1", [{ type: "SIM_RUN", payload: simcfg }], {
-            page: window.location.pathname.split("/").pop(),
-            simcfg,
-          });
-          applyExecuteArtifacts(exec);
-          updateActiveScenarioCard(simcfg);
-          syncImpactTimelineFromSimcfg(simcfg);
-          
-          appendBubble({ role: "bot", text: "Simulation started." });
-        } catch (e) {
-          console.error("SIM_RUN failed:", e);
-          appendBubble({ role: "bot", text: "Failed to start simulation (demo mode)." });
-        }
-      },
-      */
       async () => {
         try {
           updateActiveScenarioCard(simcfg);
@@ -1689,7 +1599,7 @@ function wireSimConfigModal() {
 
 
       () => {
-        appendBubble({ role: "bot", text: "Cancelled. Simulation was not started." });
+        appendBubble({ role: "bot", text: "Cancelled. Simulation was not prepared." });
       }
     );
   });
