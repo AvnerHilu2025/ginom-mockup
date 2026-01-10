@@ -287,6 +287,82 @@ function renderTick(payload, { isFromCache = false } = {}) {
   updateTimelineTitle();
   updateSectorHealthOverlay(payload?.sectors || {});
   applyChangedAssetsPulse(payload?.assets_changed || payload?.changed_assets || []);
+    // ------------------------------------------------------------
+  // Recovery flash (green) for assets that became RECOVERED this tick
+  // ------------------------------------------------------------
+  const changes = Array.isArray(payload?.assets_changed)
+    ? payload.assets_changed
+    : Array.isArray(payload?.changed_assets)
+      ? payload.changed_assets
+      : [];
+
+  const recoveredNow = changes
+    .filter((c) => String(c?.status || "") === "RECOVERED")
+    .map((c) => c.id);
+
+  if (recoveredNow.length) {
+    flashRecoveredAssets(recoveredNow);
+  }
+
+  // ------------------------------------------------------------
+  // Rich tick narration (marketing / demo)
+  // ------------------------------------------------------------
+  try {
+    const t = Number(SIM.current_tick || 0);
+    const total = Number(SIM.total_ticks || 0);
+
+    if (changes.length) {
+      // narrate up to 3 changes per tick (avoid spam)
+      const top = changes.slice(0, 3);
+
+      for (const c of top) {
+        const id = String(c?.id ?? "");
+        const st = String(c?.status ?? "");
+
+        if (!id || !st) continue;
+
+        if (st === "FAILED") {
+          const etaTicks = Math.max(2, Math.floor(2 + Math.random() * 10));
+          appendBubble({
+            role: "bot",
+            variant: "progress",
+            text:
+              `Tick ${t + 1}/${total}: Asset #${id} is DOWN. ` +
+              `Deploying repair team. Estimated stabilization in ~${etaTicks} ticks.`,
+          });
+        } else if (st === "DEGRADED") {
+          const etaTicks = Math.max(1, Math.floor(1 + Math.random() * 6));
+          appendBubble({
+            role: "bot",
+            variant: "progress",
+            text:
+              `Tick ${t + 1}/${total}: Asset #${id} is partially functional. ` +
+              `Dispatching field crew. Expected improvement in ~${etaTicks} ticks.`,
+          });
+        } else if (st === "RECOVERED") {
+          appendBubble({
+            role: "bot",
+            variant: "progress",
+            text:
+              `Tick ${t + 1}/${total}: Asset #${id} restored to full functionality. ` +
+              `Updating sector resilience score.`,
+          });
+        }
+      }
+    } else {
+      // Add occasional "quiet tick" commentary so the run feels alive
+      if (t % 6 === 0) {
+        appendBubble({
+          role: "bot",
+          variant: "progress",
+          text:
+            `Tick ${t + 1}/${total}: Monitoring cascading impacts. ` +
+            `No new asset state changes detected. Reallocating crews and verifying dependencies.`,
+        });
+      }
+    }
+  } catch (_) {}
+
 
   // Recommendations banner (minimal: send to chat for now)
   if (Array.isArray(payload?.recommendations) && payload.recommendations.length) {
@@ -397,6 +473,80 @@ function ensureAssetPulseLayer(map) {
     }, 420);
   }
 }
+
+// ============================================================
+// One-shot green recovery flash (when asset becomes RECOVERED)
+// ============================================================
+
+function ensureAssetRecoveryLayer(map) {
+  if (!map) return;
+
+  if (!map.getSource("ginom-assets-recovered")) {
+    map.addSource("ginom-assets-recovered", {
+      type: "geojson",
+      data: { type: "FeatureCollection", features: [] },
+    });
+  }
+
+  if (!map.getLayer("ginom-assets-recovered")) {
+    map.addLayer({
+      id: "ginom-assets-recovered",
+      type: "circle",
+      source: "ginom-assets-recovered",
+      paint: {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 8, 12, 12, 18, 15, 26],
+        "circle-color": "#22C55E",
+        "circle-opacity": 0.0,
+        "circle-stroke-color": "#FFFFFF",
+        "circle-stroke-width": 2,
+        "circle-stroke-opacity": 0.9,
+      },
+    });
+  }
+}
+
+function flashRecoveredAssets(recoveredIds = []) {
+  if (!MAP) return;
+  if (!recoveredIds || !recoveredIds.length) return;
+
+  ensureAssetRecoveryLayer(MAP);
+
+  const src = MAP.getSource("ginom-assets-recovered");
+  if (!src) return;
+
+  const feats = [];
+  for (const id of recoveredIds) {
+    const a = (ALL_ASSETS || []).find((x) => String(x.id) === String(id));
+    if (!a) continue;
+    feats.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [Number(a.lng), Number(a.lat)] },
+      properties: { id: String(id) },
+    });
+  }
+
+  src.setData({ type: "FeatureCollection", features: feats });
+
+  // Flash opacity for ~1.6 seconds then clear
+  let on = false;
+  const timer = setInterval(() => {
+    on = !on;
+    try {
+      MAP.setPaintProperty("ginom-assets-recovered", "circle-opacity", on ? 0.75 : 0.15);
+    } catch (_) {}
+  }, 220);
+
+  setTimeout(() => {
+    clearInterval(timer);
+    try {
+      MAP.setPaintProperty("ginom-assets-recovered", "circle-opacity", 0.0);
+    } catch (_) {}
+    try {
+      src.setData({ type: "FeatureCollection", features: [] });
+    } catch (_) {}
+  }, 1600);
+}
+
 
 function applyChangedAssetsPulse(changed = []) {
   if (!MAP) return;
@@ -663,9 +813,12 @@ async function prepareScenarioNow(simcfg, anchors) {
       }
     });
 
-  } catch (e) {
+    } catch (e) {
     console.error("prepareScenarioNow failed:", e);
-    appendBubble({ role: "bot", text: "Failed to prepare scenario. Check server logs." });
+    appendBubble({
+      role: "bot",
+      text: `Failed to prepare scenario.\n${String(e?.message || e)}`,
+    });
   }
 }
 

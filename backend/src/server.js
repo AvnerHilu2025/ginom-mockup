@@ -344,6 +344,100 @@ function avgRepairMinutes(minv, maxv) {
   if (!Number.isFinite(b)) return Math.trunc(a);
   return Math.trunc((a + b) / 2);
 }
+// ============================================================
+// Demo enhancement: auto recovery events (so the scenario improves over time)
+// ============================================================
+
+function randInt(min, max) {
+  return Math.floor(min + Math.random() * (max - min + 1));
+}
+
+/**
+ * For each damaged asset event (<100%), schedule:
+ * 1) a partial repair (to 50..95%) a few ticks later
+ * 2) a full repair (to 100%) later
+ *
+ * Inserts into scenario_events with:
+ * (instance_id, tick_index, event_kind, asset_id, performance_pct, repair_time_minutes, source_rule_id)
+ */
+
+
+async function injectAutoRecoveries(db, instance_id, { totalTicks, tick_minutes }) {
+  const damageEvents = await all(
+    db,
+    `
+    SELECT tick_index, asset_id, performance_pct
+    FROM scenario_events
+    WHERE instance_id = ?
+      AND performance_pct < 100
+    ORDER BY tick_index ASC
+  `,
+    [String(instance_id)]
+  );
+
+  if (!damageEvents.length) return { added: 0 };
+
+  let added = 0;
+  const seen = new Set(); // de-dup: instance|asset|tick|pct
+
+  for (const ev of damageEvents) {
+    const t0 = Math.max(0, Math.trunc(Number(ev.tick_index || 0)));
+    const assetId = String(ev.asset_id);
+    const damagedPct = clampInt(ev.performance_pct ?? 100, 0, 100);
+
+    // Demo tuning: you can adjust these windows later
+    const partialDelay = randInt(2, 10);
+    const fullDelay = randInt(8, 40);
+
+    const tPartial = Math.min(totalTicks - 1, t0 + partialDelay);
+    const tFull = Math.min(totalTicks - 1, t0 + fullDelay);
+
+    // Partial recovery target: ensure it becomes DEGRADED (>=50), and improves vs damagedPct
+    const partialPct = Math.max(50, Math.min(95, damagedPct + randInt(20, 45)));
+
+    // Repair time minutes (for story / later use)
+    const partialRepairMin = partialDelay * tick_minutes;
+    const fullRepairMin = fullDelay * tick_minutes;
+
+    // Insert partial repair if it improves
+    if (partialPct > damagedPct && tPartial > t0) {
+      const key = `${instance_id}|${assetId}|${tPartial}|${partialPct}`;
+      if (!seen.has(key)) {
+        await run(
+          db,
+          `
+          INSERT INTO scenario_events
+            (instance_id, tick_index, event_kind, asset_id, performance_pct, repair_time_minutes, source_rule_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+          [String(instance_id), tPartial, "REPAIR_PARTIAL", assetId, partialPct, partialRepairMin, null]
+        );
+        seen.add(key);
+        added++;
+      }
+    }
+
+    // Insert full repair
+    if (tFull > t0) {
+      const key2 = `${instance_id}|${assetId}|${tFull}|100`;
+      if (!seen.has(key2)) {
+        await run(
+          db,
+          `
+          INSERT INTO scenario_events
+            (instance_id, tick_index, event_kind, asset_id, performance_pct, repair_time_minutes, source_rule_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
+        `,
+          [String(instance_id), tFull, "REPAIR_FULL", assetId, 100, fullRepairMin, null]
+        );
+        seen.add(key2);
+        added++;
+      }
+    }
+  }
+
+  return { added };
+}
 
 async function fetchRules(db, templateId) {
   return all(
@@ -516,20 +610,39 @@ app.post("/api/scenario/prepare", async (req, res) => {
         usedAssets.add(a.id);
       }
     }
+/*
+  const rec = await injectAutoRecoveries(db, instance_id, {
+    totalTicks,
+    tick_minutes,
+  });
+*/
+    
+  let rec = { added: 0 };
+  try {
+    rec = await injectAutoRecoveries(db, instance_id, { totalTicks, tick_minutes });
+  } catch (e) {
+    console.warn("injectAutoRecoveries failed (continuing):", e);
+  }
 
-    return res.json({
-      scenario_instance_id: instance_id,
-      template_id: mapping.template_id,
-      hazard_type: mapping.hazard_type,
-      total_rules: rules.length,
-      events_created: eventsCreated,
-      assets_used: usedAssets.size,
-      total_ticks: totalTicks,
-      status: "PREPARED",
-    });
+// Important: include in prepared summary (helps verify behavior)
+  return res.json({
+    scenario_instance_id: instance_id,
+    template_id: mapping.template_id,
+    hazard_type: mapping.hazard_type,
+    total_rules: rules.length,
+    events_created: eventsCreated,
+    auto_recoveries_added: rec.added,
+    assets_used: usedAssets.size,
+    total_ticks: totalTicks,
+    status: "PREPARED",
+  });
   } catch (err) {
     console.error("POST /api/scenario/prepare failed:", err);
-    return res.status(500).json({ error: "Internal error" });
+    return res.status(500).json({
+      error: "Internal error",
+      details: String(err?.message || err),
+    });
+
   }
 });
 
@@ -644,6 +757,103 @@ function pickCityFromMessage(message) {
   if (m.includes("tel aviv") || m.includes("tlv")) return "Tel Aviv";
   return null;
 }
+/*
+function randInt(min, max) {
+  return Math.floor(min + Math.random() * (max - min + 1));
+}
+*/
+
+/*
+async function injectAutoRecoveries(db, instanceId, { totalTicks, tickMinutes }) {
+  // Load all events that reduce performance < 100
+  const damageEvents = await all(
+    db,
+    `
+    SELECT tick_index, asset_id, performance_pct
+    FROM scenario_events
+    WHERE instance_id = ?
+      AND performance_pct < 100
+    ORDER BY tick_index ASC
+  `,
+    [String(instanceId)]
+  );
+
+  if (!damageEvents.length) return { added: 0 };
+
+  // Recovery policy (demo tuning)
+  // - partial fix between 2..10 ticks after damage
+  // - full fix between 8..40 ticks after damage
+  // Keep inside totalTicks
+  let added = 0;
+  const seen = new Set(); // instanceId|assetId|tickIndex|perfPct
+
+  for (const ev of damageEvents) {
+    const t0 = Math.max(0, Math.trunc(Number(ev.tick_index || 0)));
+    const assetId = String(ev.asset_id);
+    const damagedPct = Math.max(0, Math.min(100, Number(ev.performance_pct || 100)));
+
+    // If it's already lightly damaged, still recover, but shorter window
+    const partialDelay = randInt(2, 10);
+    const fullDelay = randInt(8, 40);
+
+    const tPartial = Math.min(totalTicks - 1, t0 + partialDelay);
+    const tFull = Math.min(totalTicks - 1, t0 + fullDelay);
+
+    // Choose target partial performance (at least 50 to make it DEGRADED, and above damagedPct)
+    const partialPct = Math.max(50, Math.min(95, damagedPct + randInt(20, 45)));
+
+    // Insert partial recovery (if it actually improves)
+    if (partialPct > damagedPct && tPartial > t0) {
+      const key = `${instanceId}|${assetId}|${tPartial}|${partialPct}`;
+      if (!seen.has(key)) {
+        await run(
+          db,
+          `
+          INSERT INTO scenario_events (instance_id, tick_index, asset_id, event_kind, performance_pct, note)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `,
+          [
+            String(instanceId),
+            tPartial,
+            assetId,
+            "REPAIR_PARTIAL",
+            partialPct,
+            `Auto repair: partial recovery scheduled (+${partialDelay} ticks)`,
+          ]
+        );
+        seen.add(key);
+        added++;
+      }
+    }
+
+    // Insert full recovery to 100
+    if (tFull > t0) {
+      const key2 = `${instanceId}|${assetId}|${tFull}|100`;
+      if (!seen.has(key2)) {
+        await run(
+          db,
+          `
+          INSERT INTO scenario_events (instance_id, tick_index, asset_id, event_kind, performance_pct, note)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `,
+          [
+            String(instanceId),
+            tFull,
+            assetId,
+            "REPAIR_FULL",
+            100,
+            `Auto repair: full recovery scheduled (+${fullDelay} ticks)`,
+          ]
+        );
+        seen.add(key2);
+        added++;
+      }
+    }
+  }
+
+  return { added };
+}
+*/
 
 async function getDefaultCityFromDb(db, fallback = "Jerusalem") {
   try {
