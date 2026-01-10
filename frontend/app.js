@@ -280,6 +280,12 @@ function renderTick(payload, { isFromCache = false } = {}) {
     SIM.current_tick = Number(payload.tick_index);
   }
 
+    // If we are rendering from cache (time travel / scrub), rebuild status-map as-of this tick
+  if (isFromCache) {
+    rebuildAssetStatusToTick(SIM.current_tick);
+  }
+
+
   // Update max visited (this is our "already happened" boundary)
   SIM.max_visited_tick = Math.max(Number(SIM.max_visited_tick || 0), Number(SIM.current_tick || 0));
 
@@ -560,6 +566,8 @@ function applyChangedAssetsPulse(changed = []) {
     if (!id) continue;
     if (!st) continue;
     ASSET_STATUS_BY_ID.set(id, st);
+    refreshAssetPulseFromStatusMap();
+
   }
 
   // 2) Build a persistent blinking list:
@@ -584,6 +592,57 @@ function applyChangedAssetsPulse(changed = []) {
 
   src.setData({ type: "FeatureCollection", features: blinkFeatures });
 }
+
+function refreshAssetPulseFromStatusMap() {
+  if (!MAP) return;
+  ensureAssetPulseLayer(MAP);
+
+  const src = MAP.getSource("ginom-assets-pulse");
+  if (!src) return;
+
+  const blinkFeatures = [];
+  for (const [id, st] of ASSET_STATUS_BY_ID.entries()) {
+    if (st !== "FAILED" && st !== "DEGRADED") continue;
+
+    const a = (ALL_ASSETS || []).find((x) => String(x.id) === String(id));
+    if (!a) continue;
+
+    blinkFeatures.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [Number(a.lng), Number(a.lat)] },
+      properties: { id: String(id), status: st },
+    });
+  }
+
+  src.setData({ type: "FeatureCollection", features: blinkFeatures });
+}
+
+function rebuildAssetStatusToTick(targetTick) {
+  // Rebuild ASSET_STATUS_BY_ID to reflect state AS-OF targetTick
+  ASSET_STATUS_BY_ID.clear();
+
+  const tMax = Math.max(0, Math.trunc(Number(targetTick || 0)));
+  for (let t = 0; t <= tMax; t++) {
+    const p = SIM.cache.get(t);
+    if (!p) continue;
+
+    const changes = Array.isArray(p?.assets_changed)
+      ? p.assets_changed
+      : Array.isArray(p?.changed_assets)
+        ? p.changed_assets
+        : [];
+
+    for (const c of changes) {
+      const id = String(c?.id ?? "");
+      const st = String(c?.status ?? "");
+      if (!id || !st) continue;
+      ASSET_STATUS_BY_ID.set(id, st);
+    }
+  }
+
+  refreshAssetPulseFromStatusMap();
+}
+
 
 function loadSimcfgFromStorage() {
   try {
