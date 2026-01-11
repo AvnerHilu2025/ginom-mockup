@@ -4,6 +4,12 @@ const BASE_URL = process.env.OLLAMA_BASE_URL || "http://127.0.0.1:11434";
 const CHAT_MODEL = process.env.OLLAMA_CHAT_MODEL || "phi3:mini";
 const EMBED_MODEL = process.env.OLLAMA_EMBED_MODEL || "nomic-embed-text";
 
+// Feature flag: set DISABLE_OLLAMA=1 to disable any external LLM calls
+const DISABLE_OLLAMA = String(process.env.DISABLE_OLLAMA || "").trim() === "1";
+
+const COMMAND_ONLY_FALLBACK_MESSAGE =
+  "I did not recognize that as a supported command. Please re-enter using one of the supported commands (type: help).";
+
 /**
  * Demo-friendly defaults (CPU):
  * - Keep responses short and stable
@@ -22,13 +28,13 @@ function getChatOptions({ fast = false } = {}) {
   const temperature = Number.isFinite(Number(envTemp)) ? Number(envTemp) : preset.temperature;
   const num_predict = Number.isFinite(Number(envPredict)) ? Number(envPredict) : preset.num_predict;
 
-  // You can tune these later; they’re safe defaults.
+  // Safe defaults.
   return {
     temperature,
     num_predict,
     top_p: 0.9,
     top_k: 40,
-    repeat_penalty: 1.1
+    repeat_penalty: 1.1,
   };
 }
 
@@ -48,9 +54,13 @@ async function postJson(url, body) {
 
 /**
  * Chat call.
- * You can pass { fast: true } for command-like prompts to reduce latency.
+ * When DISABLE_OLLAMA=1, returns a deterministic fallback message and does not call Ollama.
  */
 export async function ollamaChat(messages, { fast = false } = {}) {
+  if (DISABLE_OLLAMA) {
+    return COMMAND_ONLY_FALLBACK_MESSAGE;
+  }
+
   const data = await postJson(`${BASE_URL}/api/chat`, {
     model: CHAT_MODEL,
     messages,
@@ -61,7 +71,15 @@ export async function ollamaChat(messages, { fast = false } = {}) {
   return data?.message?.content || "";
 }
 
+/**
+ * Embedding call.
+ * When DISABLE_OLLAMA=1, returns [] (no embedding) and does not call Ollama.
+ */
 export async function ollamaEmbed(text) {
+  if (DISABLE_OLLAMA) {
+    return [];
+  }
+
   const data = await postJson(`${BASE_URL}/api/embeddings`, {
     model: EMBED_MODEL,
     prompt: text,

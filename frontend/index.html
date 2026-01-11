@@ -270,6 +270,23 @@
               </div>
             </div>
           </div>
+          <!-- ===================================================== -->
+          <!-- Simulation Results Overlay (Post-run analysis modal)   -->
+          <!-- ===================================================== -->
+          <div id="resultsOverlay" class="deps-overlay is-hidden" aria-hidden="true">
+            <div class="deps-modal" role="dialog" aria-modal="true" aria-labelledby="resultsTitle">
+              <div class="deps-modal__header">
+                <div class="deps-modal__title" id="resultsTitle">Simulation Analysis</div>
+                <button id="resultsCloseBtn" class="icon-btn" title="Close" aria-label="Close">
+                  ✕
+                </button>
+              </div>
+
+              <div class="deps-modal__body">
+                <div id="resultsMount" class="results-modal__content"></div>
+              </div>
+            </div>
+          </div>
 
 
           <!-- Active Scenario Card -->

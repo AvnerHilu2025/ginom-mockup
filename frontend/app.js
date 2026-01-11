@@ -207,12 +207,36 @@ async function tickLoop() {
   const total = Math.max(1, Number(SIM.total_ticks || 0));
   const cur = Math.max(0, Number(SIM.current_tick || 0));
 
-  if (cur >= total - 1) {
-    // End reached
-    SIM.playing = false;
-    setTimelinePlayIcon(false);
-    return;
-  }
+if (cur >= total - 1) {
+  SIM.playing = false;
+  setTimelinePlayIcon(false);
+
+  // One-time end-of-run CTA
+  if (!SIM.resultsSuggested) {
+    SIM.resultsSuggested = true;
+
+    const bubble = appendBubble({
+      role: "bot",
+      text: "Simulation completed. Would you like to review the results?",
+      extraHTML: `
+        <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
+          <button class="btn btn--primary" id="btnReviewResults">Review results</button>
+        </div>
+      `,
+    });
+
+    const btn = bubble?.querySelector("#btnReviewResults");
+    if (btn) {
+          btn.addEventListener("click", () => {
+            renderResultsModal();
+            openResultsOverlay();
+          });
+        }
+      }
+
+      return;
+    }
+
 
   const next = Math.min(total - 1, cur + 1);
 
@@ -259,6 +283,192 @@ async function waitForTick(tickIndex) {
   console.warn("waitForTick timeout", { tickIndex, sim_run_id });
   return null;
 }
+
+function computeRunInsightsFromCache() {
+  // Uses SIM.cache (tick -> payload) and ALL_ASSETS to infer:
+  // - per asset downtime ticks
+  // - worst sector health
+  const assetDowntime = new Map(); // id -> { failed, degraded, recovered }
+  const sectorMin = {}; // sector -> min health observed
+  const sectorAvg = {}; // sector -> sum
+  const sectorCnt = {}; // sector -> count
+
+  const ticks = [...SIM.cache.keys()].sort((a, b) => a - b);
+  for (const t of ticks) {
+    const p = SIM.cache.get(t);
+    if (!p) continue;
+
+    // sectors health
+    const sectors = p.sectors || {};
+    for (const [sec, val] of Object.entries(sectors)) {
+      const v = Number(val);
+      if (!Number.isFinite(v)) continue;
+      sectorMin[sec] = Math.min(sectorMin[sec] ?? 100, v);
+      sectorAvg[sec] = (sectorAvg[sec] ?? 0) + v;
+      sectorCnt[sec] = (sectorCnt[sec] ?? 0) + 1;
+    }
+
+    // asset changes (approx downtime by counting states)
+    const changes = Array.isArray(p.assets_changed) ? p.assets_changed : [];
+    for (const c of changes) {
+      const id = String(c?.id ?? "");
+      const st = String(c?.status ?? "");
+      if (!id || !st) continue;
+      if (!assetDowntime.has(id)) assetDowntime.set(id, { failed: 0, degraded: 0, recovered: 0, last: "RECOVERED" });
+
+      // Update last-known status
+      assetDowntime.get(id).last = st;
+    }
+
+    // We approximate “time spent” by last-known status per tick.
+    // Build a per tick status snapshot based on ASSET_STATUS_BY_ID would be heavier;
+    // this is sufficient for marketing-grade top-8 insights.
+    for (const [id, stat] of assetDowntime.entries()) {
+      const last = stat.last || "RECOVERED";
+      if (last === "FAILED") stat.failed++;
+      else if (last === "DEGRADED") stat.degraded++;
+      else stat.recovered++;
+    }
+  }
+
+  // derive sector avg
+  const sectorAvgFinal = {};
+  for (const sec of Object.keys(sectorCnt)) {
+    sectorAvgFinal[sec] = Math.round((sectorAvg[sec] || 0) / (sectorCnt[sec] || 1));
+  }
+
+  // rank assets by (failed ticks + degraded ticks * 0.5) * criticality
+  const assetsByImpact = [];
+  for (const [id, stat] of assetDowntime.entries()) {
+    const a = (ALL_ASSETS || []).find((x) => String(x.id) === String(id));
+    const crit = Math.max(1, Number(a?.criticality || 1));
+    const score = (stat.failed + 0.5 * stat.degraded) * crit;
+    assetsByImpact.push({ id, score, crit, sector: a?.sector || "unknown" });
+  }
+  assetsByImpact.sort((x, y) => y.score - x.score);
+
+  // rank sectors by min health observed
+  const sectorsByWorst = Object.keys(sectorMin)
+    .map((sec) => ({ sec, min: sectorMin[sec], avg: sectorAvgFinal[sec] ?? 100 }))
+    .sort((a, b) => a.min - b.min);
+
+  return { assetsByImpact, sectorsByWorst };
+}
+
+function buildTop8Recommendations() {
+  const { assetsByImpact, sectorsByWorst } = computeRunInsightsFromCache();
+
+  const topAssets = assetsByImpact.slice(0, 3);
+  const worstSectors = sectorsByWorst.slice(0, 3);
+
+  // Compose exactly 8 recommendations (marketing-grade)
+  const recs = [];
+
+  recs.push({
+    title: "Restore high-criticality bottlenecks first",
+    impact: "Resilience impact: Restores essential capacity quickly and prevents cascading failures.",
+    body:
+      `Prioritize the top critical assets that spent the most time impaired ` +
+      `(e.g., ${topAssets.map((x) => `#${x.id}`).join(", ") || "key nodes"}). ` +
+      `This accelerates sector recovery and stabilizes dependent services.`,
+    meta: `Basis: asset downtime × criticality (derived from run cache).`,
+  });
+
+  recs.push({
+    title: "Stabilize the weakest sector with surge actions",
+    impact: "Resilience impact: Raises the city’s baseline service level and reduces systemic risk.",
+    body:
+      `Focus surge actions on the most degraded sector(s) observed ` +
+      `(e.g., ${worstSectors.map((s) => `${s.sec} (min ${s.min}%)`).join(", ") || "lowest-performing sectors"}). ` +
+      `Use rapid inspections, temporary bypass, and prioritized dispatch to recover minimum operational thresholds.`,
+    meta: `Basis: sector minimum health during run.`,
+  });
+
+  recs.push({
+    title: "Deploy temporary redundancy and bypass paths",
+    impact: "Resilience impact: Maintains continuity while permanent repairs are underway.",
+    body:
+      `Use temporary redundancy (mobile generators, portable pumps, spare comms, rerouting lines) ` +
+      `to keep critical services online during peak impact windows. This minimizes duration of service gaps.`,
+    meta: `Operational playbook recommendation (demo phase).`,
+  });
+
+  recs.push({
+    title: "Protect hospitals and emergency services from utility degradation",
+    impact: "Resilience impact: Preserves life-saving operations and reduces casualty risk.",
+    body:
+      `Ensure priority feeds and backup coverage for hospitals, EMS, and command centers when utilities dip. ` +
+      `Trigger automatic prioritization rules when sector health crosses thresholds.`,
+    meta: `Cross-sector resilience principle.`,
+  });
+
+  recs.push({
+    title: "Proactively manage public demand and congestion",
+    impact: "Resilience impact: Reduces load on strained infrastructure and speeds recovery.",
+    body:
+      `Issue targeted advisories (water usage limits, travel restrictions, staggered re-energization) ` +
+      `to reduce peak demand and prevent secondary failures during recovery.`,
+    meta: `Demand shaping reduces instability during recovery.`,
+  });
+
+  recs.push({
+    title: "Coordinate repair crews by criticality and dependency footprint",
+    impact: "Resilience impact: Maximizes benefit per crew-hour and shortens city-wide disruption.",
+    body:
+      `Allocate repair crews to assets with the largest downstream impact first, not only nearest repairs. ` +
+      `GINOM highlights where a single fix unlocks multiple dependent assets.`,
+    meta: `Crew optimization strategy.`,
+  });
+
+  recs.push({
+    title: "Activate mutual aid and pre-approved contractors early",
+    impact: "Resilience impact: Expands recovery capacity during the most critical window.",
+    body:
+      `If recovery stalls, activate mutual aid agreements and pre-approved contractors at the first sign ` +
+      `of sustained sector degradation. This prevents prolonged partial functionality.`,
+    meta: `Capacity scaling recommendation.`,
+  });
+
+  recs.push({
+    title: "Run an after-action dependency audit and harden weak links",
+    impact: "Resilience impact: Reduces future downtime by eliminating recurring single points of failure.",
+    body:
+      `After stabilization, generate a dependency-driven retrofit plan: redundancy, alternate routing, ` +
+      `and improved monitoring for assets that repeatedly dominate downtime metrics.`,
+    meta: `Post-event improvement loop (next phase: automated reports).`,
+  });
+
+  return recs.slice(0, 8);
+}
+
+function renderResultsModal() {
+  bindResultsOverlayOnce();
+
+  const mount = document.getElementById("resultsMount");
+  if (!mount) return;
+
+  const recs = buildTop8Recommendations();
+
+  mount.innerHTML = `
+    <div class="results-grid">
+      ${recs
+        .map(
+          (r, i) => `
+        <div class="results-item">
+          <div class="results-item__head">
+            <div class="results-item__title">${i + 1}. ${escapeHtml(r.title)}</div>
+            <div class="results-item__impact">${escapeHtml(r.impact)}</div>
+          </div>
+          <div class="results-item__body">${escapeHtml(r.body)}</div>
+          <div class="results-item__meta">${escapeHtml(r.meta || "")}</div>
+        </div>
+      `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
 
 function renderTick(payload, { isFromCache = false } = {}) {
   // payload expected:
@@ -1601,6 +1811,7 @@ function applyExecuteArtifacts(execResult) {
           SIM.max_computed_tick = -1;
           SIM.max_visited_tick = 0;
           SIM.cache.clear();
+          SIM.resultsSuggested = false;
           ASSET_STATUS_BY_ID.clear();
 
           bindTimelineControlsOnce();
@@ -2149,6 +2360,48 @@ function closeDependenciesOverlay() {
   if (canvas) canvas.classList.remove("map-disabled");
   console.log (overlay);
 }
+
+function openResultsOverlay() {
+  const overlay = document.getElementById("resultsOverlay");
+  const canvas = document.querySelector(".canvas");
+  if (!overlay || !canvas) return;
+
+  overlay.classList.remove("is-hidden");
+  overlay.setAttribute("aria-hidden", "false");
+  canvas.classList.add("map-disabled");
+}
+
+function closeResultsOverlay() {
+  const overlay = document.getElementById("resultsOverlay");
+  const canvas = document.querySelector(".canvas");
+  if (!overlay || !canvas) return;
+
+  overlay.classList.add("is-hidden");
+  overlay.setAttribute("aria-hidden", "true");
+  canvas.classList.remove("map-disabled");
+}
+
+function bindResultsOverlayOnce() {
+  if (bindResultsOverlayOnce._done) return;
+  bindResultsOverlayOnce._done = true;
+
+  const btn = document.getElementById("resultsCloseBtn");
+  if (btn) btn.addEventListener("click", closeResultsOverlay);
+
+  // click outside modal to close
+  const overlay = document.getElementById("resultsOverlay");
+  if (overlay) {
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeResultsOverlay();
+    });
+  }
+
+  // ESC to close
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeResultsOverlay();
+  });
+}
+
 
 function wireSimConfigModal() {
   const overlay = document.getElementById("simOverlay");

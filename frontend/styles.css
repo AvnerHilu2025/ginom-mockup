@@ -1377,6 +1377,10 @@ html, body {
   box-shadow: 0 30px 80px rgba(2, 6, 23, 0.25);
   display: flex;
   flex-direction: column;
+  max-height: 78vh;           /* critical: constrain height */
+  display: flex;              /* critical */
+  flex-direction: column;     /* critical */
+  overflow: hidden; 
 }
 
 .deps-modal__header {
@@ -1385,6 +1389,7 @@ html, body {
   justify-content: space-between;
   padding: 16px 18px;
   border-bottom: 1px solid var(--border-200);
+  flex: 0 0 auto;
 }
 
 .deps-modal__title {
@@ -1394,7 +1399,11 @@ html, body {
 }
 
 .deps-modal__body {
-  flex: 1;
+  /*flex: 1;*/
+  flex: 1 1 auto;
+  min-height: 0;     /* CRITICAL for flex scrolling */
+  overflow: auto;    /* CRITICAL */
+  -webkit-overflow-scrolling: touch;
   padding: 14px;
   display: flex;
 }
@@ -1638,4 +1647,59 @@ html, body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* ============================================================
+   Simulation Results Modal
+   ============================================================ */
+
+.results-modal__content{
+  width: 100%;
+  height: 100%;
+  padding: 18px;
+  overflow: auto;
+}
+
+.results-grid{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.results-item{
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 14px;
+  padding: 14px 14px;
+}
+
+.results-item__head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom: 8px;
+}
+
+.results-item__title{
+  font-weight: 900;
+  color: #0f172a;
+}
+
+.results-item__impact{
+  font-weight: 800;
+  color: #1e40af;
+  font-size: 13px;
+}
+
+.results-item__body{
+  color: rgba(15, 23, 42, 0.86);
+  line-height: 1.35;
+  font-size: 14px;
+}
+
+.results-item__meta{
+  margin-top: 10px;
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.62);
 }
